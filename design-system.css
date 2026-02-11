@@ -1,0 +1,927 @@
+/**
+ * To-Dook Design System
+ * =====================
+ * 프로젝트 전체 디자인 구성요소를 하나의 CSS 파일로 프레임워크화
+ *
+ * 사용법:
+ *   1) Next.js (layout.tsx 또는 globals.css): @import "@/styles/design-system.css";
+ *   2) HTML: <link rel="stylesheet" href="/styles/design-system.css" />
+ *
+ * SplitLayout, Sidebar, ChatPanel, TodoList 등에서 쓰는 --bg-primary, --bg-secondary,
+ * --border-color, --accent-color, --bg-input, --bg-tertiary, --text-primary, --text-secondary
+ * 변수가 여기 :root에 정의되어 있어, 이 파일을 import하면 해당 모듈 CSS가 정상 동작합니다.
+ *
+ * 컴포넌트 클래스는 .ds- 접두사 사용 (예: .ds-btn, .ds-btn--primary, .ds-card).
+ */
+
+/* ==========================================================================
+   1. DESIGN TOKENS (CSS Variables)
+   ========================================================================== */
+
+:root {
+  /* ---- Brand / Primary ---- */
+  --color-primary: #2d2d2d;
+  --color-primary-hover: #1f1f1f;
+  --color-primary-light: #3a3a3a;
+
+  /* ---- Background ---- */
+  --background: #ffffff;
+  --background-secondary: #fffbf5;
+  --foreground: #1f2937;
+
+  /* App layout (light theme) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #faf8f3;
+  --bg-tertiary: #f3f0e8;
+  --bg-input: #f5f5f5;
+
+  /* ---- Text ---- */
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+
+  /* ---- Border ---- */
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+
+  /* ---- Accent (CTA, checkbox checked, links) ---- */
+  --accent-color: #2d2d2d;
+
+  /* ---- Semantic (Tailwind / Apple palette) ---- */
+  --color-zinc-850: #1f1f1f;
+  --color-zinc-900: #141414;
+  --color-zinc-950: #000000;
+  --color-apple-blue: #0a84ff;
+  --color-apple-gray: #8e8e93;
+  --color-apple-yellow: #ffd60a;
+  --color-apple-red: #ff453a;
+
+  /* ---- Grays ---- */
+  --gray-50: #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* ---- Button (page.module) ---- */
+  --button-primary-hover: #383838;
+  --button-secondary-hover: #f2f2f2;
+  --button-secondary-border: #ebebeb;
+
+  /* ---- Spacing (base 4px) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-pill: 128px;
+  --radius-full: 50%;
+
+  /* ---- Shadow ---- */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+  /* ---- Typography ---- */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --text-5xl: 48px;
+  --text-6xl: 60px;
+  --text-7xl: 72px;
+
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* ---- Transitions ---- */
+  --transition-fast: 0.15s ease;
+  --transition: 0.2s ease;
+  --transition-slow: 0.3s ease-out;
+}
+
+/* Dark mode (optional, for page.module / prefers-color-scheme) */
+@media (prefers-color-scheme: dark) {
+  :root.auto-dark {
+    --background: #000;
+    --foreground: #000;
+    --text-primary: #ededed;
+    --text-secondary: #999;
+    --button-primary-hover: #ccc;
+    --button-secondary-hover: #1a1a1a;
+    --button-secondary-border: #1a1a1a;
+  }
+}
+
+/* ==========================================================================
+   2. BASE / RESET
+   ========================================================================== */
+
+.ds-body,
+.design-system--root {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
+   3. TYPOGRAPHY
+   ========================================================================== */
+
+.ds-h1 {
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+.ds-h1--hero {
+  font-size: clamp(1.875rem, 5vw, 4.5rem);
+  font-weight: var(--font-bold);
+  line-height: 1.1;
+  color: var(--gray-900);
+}
+
+.ds-h2 {
+  font-size: clamp(1.5rem, 3vw, 3rem);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  color: var(--gray-900);
+}
+
+.ds-h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
+  color: var(--gray-900);
+}
+
+.ds-text-primary { color: var(--text-primary); }
+.ds-text-secondary { color: var(--text-secondary); }
+.ds-text-muted { color: var(--gray-500); }
+.ds-text-xs { font-size: var(--text-xs); }
+.ds-text-sm { font-size: var(--text-sm); }
+.ds-text-base { font-size: var(--text-base); }
+.ds-text-lg { font-size: var(--text-lg); }
+.ds-font-medium { font-weight: var(--font-medium); }
+.ds-font-semibold { font-weight: var(--font-semibold); }
+.ds-font-bold { font-weight: var(--font-bold); }
+
+/* ==========================================================================
+   4. BUTTONS
+   ========================================================================== */
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.ds-btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ds-btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.ds-btn--secondary {
+  border-color: var(--button-secondary-border);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.ds-btn--secondary:hover {
+  background: var(--button-secondary-hover);
+  border-color: transparent;
+}
+
+.ds-btn--pill {
+  border-radius: var(--radius-pill);
+}
+
+.ds-btn--pill.ds-btn--primary {
+  padding: var(--space-2) var(--space-6);
+}
+
+.ds-btn--lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+}
+
+.ds-btn--xl {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+}
+
+.ds-btn--round {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-full);
+}
+
+.ds-btn--round.ds-btn--sm {
+  width: 32px;
+  height: 32px;
+}
+
+/* ==========================================================================
+   5. CARDS
+   ========================================================================== */
+
+.ds-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  transition: box-shadow var(--transition), border-color var(--transition);
+}
+
+.ds-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.ds-card--stat {
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.ds-card--stat .ds-card__value {
+  font-size: clamp(1.875rem, 3vw, 3rem);
+  font-weight: var(--font-bold);
+  color: var(--color-primary);
+  margin-bottom: var(--space-1);
+}
+
+.ds-card--feature {
+  background: var(--gray-100);
+  padding: var(--space-5);
+}
+
+.ds-card--integration {
+  background: #fff;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow var(--transition);
+}
+
+.ds-card--integration:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* ==========================================================================
+   6. INPUTS
+   ========================================================================== */
+
+.ds-input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: #fff;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-lg);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.ds-input::placeholder {
+  color: var(--gray-400);
+}
+
+.ds-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(45, 45, 45, 0.2);
+}
+
+.ds-input--chat {
+  background: var(--bg-input);
+  border: 1px solid transparent;
+  border-radius: 26px;
+  padding: var(--space-2) var(--space-4);
+}
+
+.ds-input--chat:focus-within {
+  border-color: var(--border-color);
+}
+
+/* ==========================================================================
+   7. BADGES / PILLS
+   ========================================================================== */
+
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  border-radius: var(--radius-pill);
+}
+
+.ds-badge--green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ds-badge--gray {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+/* ==========================================================================
+   8. LAYOUT
+   ========================================================================== */
+
+.ds-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+.ds-container--sm { max-width: 640px; }
+.ds-container--md { max-width: 768px; }
+.ds-container--lg { max-width: 1024px; }
+.ds-container--xl { max-width: 1280px; }
+
+.ds-split {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.ds-split__left {
+  width: 350px;
+  min-width: 300px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+}
+
+.ds-split__right {
+  flex: 1;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ---- Nav (floating) ---- */
+.ds-nav--float {
+  position: fixed;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: #fff;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--gray-200);
+  padding: var(--space-2) var(--space-4);
+  width: calc(100% - 24px);
+  max-width: fit-content;
+}
+
+/* ---- Section spacing ---- */
+.ds-section {
+  padding: var(--space-16) var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .ds-section {
+    padding: var(--space-20) var(--space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .ds-section {
+    padding-left: var(--space-8);
+    padding-right: var(--space-8);
+  }
+}
+
+.ds-section--alt {
+  background: var(--background-secondary);
+}
+
+.ds-section--muted {
+  background: var(--gray-50);
+}
+
+/* ==========================================================================
+   9. MODAL / OVERLAY
+   ========================================================================== */
+
+.ds-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.ds-modal {
+  background: #fff;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2xl);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 28rem;
+}
+
+.ds-modal--dark {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ds-modal--dark .ds-input {
+  background: #fff;
+  border-color: transparent;
+}
+
+.ds-modal--dark .ds-btn--primary {
+  background: #fff;
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   10. LANDING COMPONENTS
+   ========================================================================== */
+
+/* Hero CTA */
+.ds-hero-cta {
+  display: inline-block;
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-pill);
+  transition: var(--transition);
+}
+
+.ds-hero-cta:hover {
+  background: var(--color-primary-hover);
+  transform: scale(1.02);
+}
+
+@media (min-width: 768px) {
+  .ds-hero-cta {
+    padding: var(--space-4) var(--space-8);
+    font-size: var(--text-lg);
+  }
+}
+
+/* Tablet / Device mockup */
+.ds-device {
+  background: var(--color-primary);
+  border-radius: var(--radius-3xl);
+  padding: var(--space-2);
+}
+
+.ds-device__screen {
+  background: #fff;
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+}
+
+/* FAQ accordion */
+.ds-faq-item {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+}
+
+.ds-faq-trigger {
+  width: 100%;
+  padding: var(--space-5) var(--space-6);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+  color: var(--gray-900);
+  transition: background var(--transition);
+}
+
+.ds-faq-trigger:hover {
+  background: var(--gray-50);
+}
+
+.ds-faq-content {
+  padding: 0 var(--space-6) var(--space-5);
+  color: var(--gray-600);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+/* Avatar stack (e.g. landing "10,000+ users") */
+.ds-avatar-stack {
+  display: flex;
+  margin: 0 calc(var(--space-2) * -1);
+}
+
+.ds-avatar-stack__item {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  border: 2px solid #fff;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .ds-avatar-stack__item {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+.ds-avatar-stack__item--blue { background: linear-gradient(to bottom right, #60a5fa, #2563eb); }
+.ds-avatar-stack__item--purple { background: linear-gradient(to bottom right, #c084fc, #9333ea); }
+.ds-avatar-stack__item--pink { background: linear-gradient(to bottom right, #f472b6, #db2777); }
+.ds-avatar-stack__item--orange { background: linear-gradient(to bottom right, #fb923c, #ea580c); }
+
+/* Security badges row */
+.ds-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--gray-100);
+  margin-top: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .ds-badges-row {
+    gap: var(--space-6);
+    padding-top: var(--space-8);
+    margin-top: var(--space-8);
+  }
+}
+
+.ds-badge-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--gray-600);
+}
+
+@media (min-width: 768px) {
+  .ds-badge-item {
+    font-size: var(--text-sm);
+  }
+}
+
+/* ==========================================================================
+   11. TODO / APP COMPONENTS
+   ========================================================================== */
+
+.ds-todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--gray-200);
+  background: #fff;
+  transition: opacity var(--transition), background var(--transition);
+}
+
+.ds-todo-item:hover {
+  background: var(--gray-50);
+}
+
+.ds-todo-item--dragging {
+  opacity: 0.5;
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
+}
+
+.ds-checkbox {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--text-secondary);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.ds-checkbox--checked {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.ds-checkbox--round {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+}
+
+/* Toggle (Sidebar) */
+.ds-toggle-group {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  display: flex;
+  gap: 2px;
+}
+
+.ds-toggle-btn {
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.ds-toggle-btn--active {
+  background: #636363;
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+}
+
+/* Chat input container */
+.ds-chat-input-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 768px;
+  background: var(--bg-input);
+  border-radius: 26px;
+  padding: var(--space-2) var(--space-4);
+  display: flex;
+  align-items: flex-end;
+  border: 1px solid transparent;
+}
+
+.ds-chat-input-wrap:focus-within {
+  border-color: var(--border-color);
+}
+
+.ds-send-btn {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-full);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: var(--space-2);
+  transition: opacity var(--transition);
+}
+
+.ds-send-btn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+/* Agent feedback bar */
+.ds-agent-feedback {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(to right, var(--gray-50), var(--gray-100));
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-4);
+}
+
+/* Skeleton / shimmer */
+.ds-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--gray-200) 25%,
+    var(--gray-100) 50%,
+    var(--gray-200) 75%
+  );
+  background-size: 200% 100%;
+  animation: ds-shimmer 1.5s infinite ease-in-out;
+  border-radius: var(--radius);
+}
+
+@keyframes ds-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ==========================================================================
+   12. ANIMATIONS
+   ========================================================================== */
+
+@keyframes ds-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ds-animate-fadeIn {
+  animation: ds-fadeIn 0.3s ease-out;
+}
+
+@keyframes ds-fadeIn--up {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ds-animate-fadeInUp {
+  animation: ds-fadeIn--up 0.3s ease-out;
+}
+
+.ds-animate-pulse {
+  animation: ds-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes ds-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ds-animate-spin {
+  animation: ds-spin 1s linear infinite;
+}
+
+@keyframes ds-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   13. SCROLLBAR
+   ========================================================================== */
+
+.ds-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ds-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ds-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 4px;
+}
+
+.ds-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+
+/* ==========================================================================
+   14. UTILITIES
+   ========================================================================== */
+
+.ds-flex { display: flex; }
+.ds-flex-col { flex-direction: column; }
+.ds-items-center { align-items: center; }
+.ds-justify-center { justify-content: center; }
+.ds-justify-between { justify-content: space-between; }
+.ds-gap-2 { gap: var(--space-2); }
+.ds-gap-3 { gap: var(--space-3); }
+.ds-gap-4 { gap: var(--space-4); }
+.ds-gap-6 { gap: var(--space-6); }
+
+.ds-text-center { text-align: center; }
+.ds-rounded-lg { border-radius: var(--radius-lg); }
+.ds-rounded-xl { border-radius: var(--radius-xl); }
+.ds-rounded-2xl { border-radius: var(--radius-2xl); }
+.ds-rounded-full { border-radius: var(--radius-full); }
+
+.ds-shadow-sm { box-shadow: var(--shadow-sm); }
+.ds-shadow-md { box-shadow: var(--shadow-md); }
+.ds-shadow-lg { box-shadow: var(--shadow-lg); }
+.ds-shadow-xl { box-shadow: var(--shadow-xl); }
+
+.ds-transition { transition: var(--transition); }
+.ds-transition-colors { transition: color var(--transition), background-color var(--transition), border-color var(--transition); }
+.ds-transition-shadow { transition: box-shadow var(--transition); }
+
+/* Responsive visibility */
+.ds-hidden-mobile { display: none !important; }
+.ds-hidden-desktop { display: block !important; }
+@media (min-width: 768px) {
+  .ds-hidden-mobile { display: flex !important; }
+  .ds-hidden-desktop { display: none !important; }
+}
+
+/* ==========================================================================
+   15. FOOTER
+   ========================================================================== */
+
+.ds-footer {
+  padding: var(--space-8) var(--space-4);
+  background: #fff;
+  border-top: 1px solid var(--gray-100);
+}
+
+@media (min-width: 768px) {
+  .ds-footer {
+    padding: var(--space-12) var(--space-6);
+  }
+}
+
+.ds-footer__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.ds-footer__copy {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  text-align: center;
+}
