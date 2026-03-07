@@ -128,28 +128,44 @@ export function useMultiStepProgress({
   const [stepProgress, setStepProgress] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const intervalRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
   const currentProgressRef = useRef(0);
   const isTransitioningRef = useRef(false);
+  const cancelledRef = useRef(false);
 
   const isComplete = currentStepIndex >= steps.length;
 
-  const reset = useCallback(() => {
+  const stopAll = useCallback(() => {
+    cancelledRef.current = true;
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    setCurrentStepIndex(0);
-    setStepProgress(0);
-    currentProgressRef.current = 0;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     isTransitioningRef.current = false;
     setIsRunning(false);
   }, []);
 
+  const reset = useCallback(() => {
+    stopAll();
+    setCurrentStepIndex(0);
+    setStepProgress(0);
+    currentProgressRef.current = 0;
+    cancelledRef.current = false;
+  }, [stopAll]);
+
   const runStep = useCallback((stepIndex: number) => {
+    if (cancelledRef.current) return;
+
     if (stepIndex >= steps.length) {
       setIsRunning(false);
-      if (onAllComplete) {
-        setTimeout(onAllComplete, 300);
+      if (onAllComplete && !cancelledRef.current) {
+        timeoutRef.current = window.setTimeout(() => {
+          if (!cancelledRef.current) onAllComplete();
+        }, 300);
       }
       return;
     }
@@ -161,6 +177,14 @@ export function useMultiStepProgress({
     setStepProgress(0);
 
     intervalRef.current = window.setInterval(() => {
+      if (cancelledRef.current) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return;
+      }
+
       const rand = Math.random();
       let speedFactor: number;
 
@@ -190,7 +214,9 @@ export function useMultiStepProgress({
         }
 
         isTransitioningRef.current = true;
-        setTimeout(() => {
+        timeoutRef.current = window.setTimeout(() => {
+          if (cancelledRef.current) return;
+
           setStepProgress(0);
           currentProgressRef.current = 0;
           const nextIndex = stepIndex + 1;
@@ -201,8 +227,10 @@ export function useMultiStepProgress({
             runStep(nextIndex);
           } else {
             setIsRunning(false);
-            if (onAllComplete) {
-              setTimeout(onAllComplete, 300);
+            if (onAllComplete && !cancelledRef.current) {
+              timeoutRef.current = window.setTimeout(() => {
+                if (!cancelledRef.current) onAllComplete();
+              }, 300);
             }
           }
         }, 250);
@@ -214,6 +242,7 @@ export function useMultiStepProgress({
 
   const start = useCallback(() => {
     if (isRunning || isTransitioningRef.current) return;
+    cancelledRef.current = false;
     setIsRunning(true);
     setCurrentStepIndex(0);
     runStep(0);
@@ -221,12 +250,11 @@ export function useMultiStepProgress({
 
   useEffect(() => {
     if (autoStart && !isRunning && currentStepIndex === 0) {
+      cancelledRef.current = false;
       start();
     }
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      stopAll();
     };
   }, [autoStart]);
 

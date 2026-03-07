@@ -26,6 +26,8 @@ env
 # Env
 .env
 backend/.env
+backend/serviceAccountKey.json
+**/serviceAccountKey*.json
 
 # Editor directories and files
 .vscode/*
@@ -37,3 +39,20 @@ backend/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Windows artifacts
+nul
+backend/nul
+
+# Temp / Binary
+ffmpeg-temp/
+test.mp4
+
+# AI tool metadata
+.sisyphus/
+
+# pip install artifacts
+backend/=*
+
+# Downloaded files
+backend/downloads/

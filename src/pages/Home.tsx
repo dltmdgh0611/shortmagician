@@ -1,22 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, MoreVertical, Clock, Languages } from "lucide-react";
+import { Plus, Search, MoreVertical, Languages, X, Trash2 } from "lucide-react";
 import { TemplateModal } from "../components/modals/TemplateModal";
 import { ScriptModal } from "../components/modals/ScriptModal";
 import { ProjectSettingsModal } from "../components/modals/ProjectSettingsModal";
 import { ConvertModal } from "../components/modals/ConvertModal";
 import { ConvertLanguageModal } from "../components/modals/ConvertLanguageModal";
 import { ConvertLoadingModal } from "../components/modals/ConvertLoadingModal";
+import type { VideoInfo } from "../lib/videoParser";
+import { usePipeline } from "../contexts/PipelineContext";
+import { useAuth } from "../contexts/AuthContext";
+import { api } from "../lib/api";
+import { listProjects, loadProject as loadProjectFromDisk, deleteProject as deleteProjectFromDisk } from "../lib/services/projectService";
+import { readFile } from "@tauri-apps/plugin-fs";
+import type { ProjectSummary } from "../lib/services/projectService";
+import type { SupportedLanguage } from "../lib/types/pipeline";
 
 // 변환 소스 타입
 interface ConvertSource {
   type: "link" | "file";
   value: string;
   fileName?: string;
+  videoInfo?: VideoInfo;
 }
 
 export function Home() {
   const navigate = useNavigate();
+  const { fetchCredits } = useAuth();
+  const { startPipeline, cancelPipeline, progress, error, logs, result: pipelineResult, isProcessing, clearPipeline, loadPipelineResult } = usePipeline();
+
+  const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   
   // 새 프로젝트 생성 관련 상태
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -29,8 +44,94 @@ export function Home() {
   const [showConvertLanguageModal, setShowConvertLanguageModal] = useState(false);
   const [showConvertLoadingModal, setShowConvertLoadingModal] = useState(false);
   const [convertSource, setConvertSource] = useState<ConvertSource | null>(null);
-  const [convertLanguages, setConvertLanguages] = useState<string[]>(["ko"]);
+  const [convertLanguages, setConvertLanguages] = useState<string[]>([]);
 
+  // Credit state
+  const [credits, setCredits] = useState<{ dailyLimit: number; usedToday: number; remaining: number; resetDate: string } | null>(null);
+  const [creditError, setCreditError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listProjects()
+      .then(setSavedProjects)
+      .catch(() => setSavedProjects([]))
+      .finally(() => setProjectsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const loadThumbnails = async () => {
+      const urls: Record<string, string> = {};
+      for (const project of savedProjects) {
+        if (project.thumbnailPath) {
+          try {
+            const bytes = await readFile(project.thumbnailPath);
+            const blob = new Blob([bytes], { type: "image/jpeg" });
+            urls[project.id] = URL.createObjectURL(blob);
+          } catch {
+            // thumbnail file missing or unreadable, skip
+          }
+        }
+      }
+      setThumbnailUrls(prev => {
+        Object.values(prev).forEach(URL.revokeObjectURL);
+        return urls;
+      });
+    };
+    loadThumbnails();
+    return () => {
+      setThumbnailUrls(prev => {
+        Object.values(prev).forEach(URL.revokeObjectURL);
+        return {};
+      });
+    };
+  }, [savedProjects]);
+
+  useEffect(() => {
+    fetchCredits().then(setCredits);
+  }, []);
+
+  const clearProjectSessionStorage = () => {
+    const keysToRemove = [
+      "savedSubtitleStyle", "savedBlurRegion", "savedSelectedLanguage",
+      "savedTextOverlays", "projectLanguages", "isConvertedProject",
+      "convertSource", "convertSourceLanguage", "currentScenes",
+    ];
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    // Also remove project_created_ keys
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith("project_created_")) sessionStorage.removeItem(key);
+    }
+  };
+
+  const handleResumeProject = async (projectId: string) => {
+    try {
+      const project = await loadProjectFromDisk(projectId);
+
+      // 1. Clear all stale session data
+      clearProjectSessionStorage();
+
+      // 2. Reset pipeline context
+      clearPipeline();
+
+      // 3. Load new project into pipeline context
+      loadPipelineResult(project.pipelineResult);
+
+      // 4. Store project-specific state for editor restoration
+      sessionStorage.setItem("projectLanguages", JSON.stringify(project.projectLanguages));
+      sessionStorage.setItem("savedSubtitleStyle", JSON.stringify(project.subtitleStyle));
+      sessionStorage.setItem("savedBlurRegion", JSON.stringify(project.blurRegion));
+      sessionStorage.setItem("savedSelectedLanguage", project.selectedLanguage);
+      sessionStorage.setItem("isConvertedProject", "true");
+      if (project.textOverlays) {
+        sessionStorage.setItem("savedTextOverlays", JSON.stringify(project.textOverlays));
+      }
+
+      // 5. Navigate with projectId key to force editor remount
+      navigate("/editor", { state: { projectId: project.id } });
+    } catch (err) {
+      console.error("Failed to load project:", err);
+    }
+  };
   // 새 프로젝트 생성 핸들러
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
@@ -62,34 +163,72 @@ export function Home() {
     setShowConvertModal(true);
   };
 
-  const handleConvertStart = (languages: string[]) => {
-    setConvertLanguages(languages);
+  const handleConvertStart = async (sourceLanguage: string, targetLanguages: string[]) => {
+    // Credit check — deduct one credit before starting pipeline
+    try {
+      const res = await api.post('/api/v1/credits/deduct');
+      setCredits({
+        dailyLimit: res.data.daily_limit,
+        usedToday: res.data.used_today,
+        remaining: res.data.remaining,
+        resetDate: res.data.reset_date,
+      });
+    } catch (err: any) {
+      if (err.response?.status === 403) {
+        setCreditError("오늘의 크레딧을 모두 사용했습니다 (5/5). 내일 다시 시도해주세요.");
+        setShowConvertLanguageModal(false);
+        return;
+      }
+    }
+
+    setConvertLanguages(targetLanguages);
     setShowConvertLanguageModal(false);
     setShowConvertLoadingModal(true);
+    sessionStorage.setItem("convertSourceLanguage", sourceLanguage);
+    if (convertSource) {
+      const videoPath = convertSource.type === "link"
+        ? (convertSource.videoInfo?.localFilePath || convertSource.value)
+        : convertSource.value;
+      // 첫 번째 대상 언어로 파이프라인 시작 (원본 언어는 제외됨)
+      startPipeline(videoPath, targetLanguages[0] as SupportedLanguage);
+    }
   };
 
   const handleConvertComplete = () => {
-    // 변환 완료 후 에디터로 이동
-    // 시연용 고정 스크립트 (한국어 원본)
-    const mockConvertedScenes = [
-      { id: 1, text: "하루 5분 혈액순환 운동", duration: 3 },
-      { id: 2, text: "하루 5분 이 운동만으로도", duration: 3 },
-      { id: 3, text: "혈액순환이 달라집니다", duration: 3 },
-      { id: 4, text: "특별한 도구는 필요 없습니다", duration: 3 },
-    ];
-    
-    // 시연용 고정 언어: 한국어 + 일본어
-    const demoLanguages = ["ko", "ja"];
-    
-    sessionStorage.setItem("currentScenes", JSON.stringify(mockConvertedScenes));
-    sessionStorage.setItem("projectLanguages", JSON.stringify(demoLanguages));
-    sessionStorage.setItem("projectDuration", "15");
+    sessionStorage.setItem("projectLanguages", JSON.stringify(convertLanguages));
     sessionStorage.setItem("isConvertedProject", "true");
-    sessionStorage.setItem("convertSource", JSON.stringify(convertSource));
-    
+    if (convertSource) {
+      sessionStorage.setItem("convertSource", JSON.stringify(convertSource));
+    }
     setShowConvertLoadingModal(false);
-    navigate("/editor");
+    navigate("/editor", { state: { projectId: pipelineResult?.projectId || `new-${Date.now()}` } });
   };
+
+  const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation(); // Don't trigger card click
+    if (!confirm("이 프로젝트를 삭제하시겠습니까?")) return;
+    try {
+      await deleteProjectFromDisk(projectId);
+      setSavedProjects(prev => prev.filter(p => p.id !== projectId));
+      setThumbnailUrls(prev => {
+        const newUrls = { ...prev };
+        if (newUrls[projectId]) {
+          URL.revokeObjectURL(newUrls[projectId]);
+          delete newUrls[projectId];
+        }
+        return newUrls;
+      });
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+    }
+  };
+  useEffect(() => {
+    if (showConvertLoadingModal && !isProcessing && pipelineResult) {
+      if (pipelineResult.status === "done") {
+        handleConvertComplete();
+      }
+    }
+  }, [showConvertLoadingModal, isProcessing, pipelineResult]);
 
   return (
     <div className="max-w-6xl mx-auto p-8 space-y-8">
@@ -132,6 +271,50 @@ export function Home() {
         </button>
       </div>
 
+      {/* Credit Display */}
+      {credits && (
+        <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-5 py-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+              <span className="text-amber-600 text-sm font-bold">⚡</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">오늘의 크레딧</p>
+              <p className="text-xs text-gray-400">매일 자정에 초기화됩니다</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1">
+              {Array.from({ length: credits.dailyLimit }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-3 h-3 rounded-full ${
+                    i < credits.remaining
+                      ? 'bg-amber-400'
+                      : 'bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-sm font-bold text-gray-900">
+              {credits.remaining}/{credits.dailyLimit}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Credit Error Banner */}
+      {creditError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-3 bg-red-500 text-white px-5 py-3 rounded-xl shadow-lg shadow-red-500/30">
+            <span className="font-medium">{creditError}</span>
+            <button onClick={() => setCreditError(null)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Projects Section */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -157,14 +340,54 @@ export function Home() {
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {/* Placeholders */}
-          {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-            <div
-              key={i}
-              className="aspect-[9/16] rounded-2xl bg-gray-100 border-2 border-dashed border-gray-200 flex items-center justify-center"
-            >
-              <div className="text-gray-400 text-sm">빈 슬롯</div>
+          {projectsLoading ? (
+            /* loading state */
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="aspect-[9/16] rounded-2xl bg-gray-100 border border-gray-200 animate-pulse" />
+            ))
+          ) : savedProjects.length > 0 ? (
+            savedProjects.map((project) => (
+              <div
+                key={project.id}
+                onClick={() => handleResumeProject(project.id)}
+                className="aspect-[9/16] rounded-2xl bg-white border border-gray-200 flex flex-col overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all group"
+              >
+                <div className="flex-1 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center overflow-hidden">
+                  {thumbnailUrls[project.id] ? (
+                    <img src={thumbnailUrls[project.id]} alt={project.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Languages size={40} className="text-blue-300 group-hover:text-blue-400 transition-colors" />
+                  )}
+                </div>
+                <div className="p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate flex-1">{project.name}</h3>
+                    <button
+                      onClick={(e) => handleDeleteProject(e, project.id)}
+                      className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="프로젝트 삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400">
+                    {new Date(project.updatedAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">
+                      {project.sourceLanguage?.toUpperCase()} → {project.targetLanguage?.toUpperCase()}
+                    </span>
+                  </div>
+              </div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full py-12 text-center">
+              <p className="text-sm text-gray-400">아직 저장된 프로젝트가 없습니다</p>
+              <p className="text-xs text-gray-300 mt-1">프로젝트를 변환하면 자동으로 저장됩니다</p>
             </div>
-          ))}
+          )}
+
         </div>
       </div>
 
@@ -219,41 +442,22 @@ export function Home() {
       <ConvertLoadingModal
         isOpen={showConvertLoadingModal}
         onComplete={handleConvertComplete}
+        onCancel={() => { cancelPipeline(); setShowConvertLoadingModal(false); }}
         languages={convertLanguages}
+        pipelineProgress={progress ?? undefined}
+        error={error ?? undefined}
+        logs={logs}
+        onRetry={() => {
+          clearPipeline();
+          if (convertSource) {
+            const videoPath = convertSource.type === "link"
+              ? (convertSource.videoInfo?.localFilePath || convertSource.value)
+              : convertSource.value;
+            startPipeline(videoPath, convertLanguages[0] as SupportedLanguage);
+          }
+        }}
       />
     </div>
   );
 }
 
-function ProjectCard({
-  title,
-  date,
-  thumbnail,
-}: {
-  title: string;
-  date: string;
-  thumbnail: string;
-}) {
-  return (
-    <div className="group cursor-pointer">
-      <div
-        className={`aspect-[9/16] rounded-2xl mb-3 overflow-hidden border border-gray-200 ${thumbnail} relative shadow-sm hover:shadow-md transition-shadow`}
-      >
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-          <button className="bg-white text-gray-900 px-4 py-2 rounded-full font-semibold text-sm transform translate-y-2 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-            편집하기
-          </button>
-        </div>
-      </div>
-      <div>
-        <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-          {title}
-        </h3>
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
-          <Clock size={12} />
-          <span>{date}</span>
-        </div>
-      </div>
-    </div>
-  );
-}

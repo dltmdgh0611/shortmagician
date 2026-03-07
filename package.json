@@ -4,12 +4,23 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "kill-port": "cmd /c \"for /f \\\"tokens=5\\\" %a in ('netstat -ano ^| findstr :1420 ^| findstr LISTENING') do taskkill /F /PID %a\" 2>nul || echo port 1420 free",
+    "dev": "yarn kill-port && concurrently -n tauri,api -c blue,green \"yarn dev:tauri\" \"yarn dev:backend\"",
+    "dev:frontend": "vite",
+    "dev:backend": "cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:tauri": "tauri dev",
+    "dev:web": "yarn kill-port && concurrently -n web,api -c blue,green \"vite\" \"yarn dev:backend\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-opener": "^2.5.3",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "axios": "^1.13.2",
     "firebase": "^12.8.0",
     "lucide-react": "^0.563.0",
@@ -20,13 +31,21 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@tauri-apps/cli": "^2.0.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.23",
+    "concurrently": "^9.2.1",
+    "firebase-admin": "^13.6.1",
+    "jsdom": "^28.1.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.0.18"
   }
 }

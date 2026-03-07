@@ -4,11 +4,17 @@ import {
   LayoutTemplate,
   UploadCloud,
   Settings,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { state, logout } = useAuth();
+  const displayName = state.user?.displayName || state.profile?.displayName || "사용자";
+  const email = state.user?.email || "";
+  const avatarLetter = (displayName[0] || email[0] || "?").toUpperCase();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -55,13 +61,20 @@ export function DashboardLayout() {
         {/* User Profile (Bottom) */}
         <div className="mt-auto pt-6 border-t border-gray-100">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-xs font-bold">
-              A
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {avatarLetter}
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">Admin</p>
-              <p className="text-xs text-gray-500 truncate">admin@shortmagician.com</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+              <p className="text-xs text-gray-500 truncate">{email}</p>
             </div>
+            <button
+              onClick={() => void logout()}
+              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+              title="로그아웃"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>

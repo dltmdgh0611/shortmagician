@@ -1,3 +1,47 @@
+/* ── Bundled Noto Sans CJK fonts (same as FFmpeg export) ── */
+@font-face {
+  font-family: 'Noto Sans CJK KR';
+  src: url('/fonts/NotoSansCJKkr-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Noto Sans CJK KR';
+  src: url('/fonts/NotoSansCJKkr-Regular.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Noto Sans CJK JP';
+  src: url('/fonts/NotoSansCJKjp-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Noto Sans CJK JP';
+  src: url('/fonts/NotoSansCJKjp-Regular.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Noto Sans CJK SC';
+  src: url('/fonts/NotoSansCJKsc-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Noto Sans CJK SC';
+  src: url('/fonts/NotoSansCJKsc-Regular.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @import "tailwindcss";
 
 @layer theme {

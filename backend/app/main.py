@@ -1,10 +1,30 @@
+import logging
+
+from app.config import HOST, PORT  # noqa: E402 — must be first to load .env
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.middleware.usage_tracking import UsageTrackingMiddleware
+from app.middleware.error_handler import pipeline_error_handler
+from app.routers import example, users, earlybird, youtube, pipeline, credits
 
-from app.config import HOST, PORT
-from app.routers import example
+# ── Logging setup ──────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-7s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+# Quiet noisy libraries
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="shortmagician API")
+
+# ── Global exception handler for uncaught pipeline errors ──────────────────────
+app.add_exception_handler(Exception, pipeline_error_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,7 +40,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(UsageTrackingMiddleware)
+
 app.include_router(example.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(earlybird.router, prefix="/api/v1")
+app.include_router(pipeline.router, prefix="/api/v1")
+app.include_router(youtube.router, prefix="/api/v1")
+app.include_router(credits.router, prefix="/api/v1")
+# video router removed — video parsing now runs locally via Tauri sidecar (yt-dlp)
 
 
 @app.get("/")
@@ -36,4 +64,5 @@ def health() -> dict:
 if __name__ == "__main__":
     import uvicorn
 
+    logger.info("Starting server on %s:%s", HOST, PORT)
     uvicorn.run("app.main:app", host=HOST, port=PORT, reload=True)

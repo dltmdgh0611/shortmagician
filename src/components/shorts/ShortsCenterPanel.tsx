@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Trash2, Mic, Image as ImageIcon, Wand2, Type, Clock, Plus, ChevronDown, Volume2 } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { Trash2, Mic, Image as ImageIcon, Wand2, Type, Clock, Plus, ChevronDown, ChevronRight, Volume2, RefreshCw, Loader2, Scissors } from "lucide-react";
+import { SUPPORTED_LANGUAGES } from "../../lib/constants/languages";
+import type { PipelineSegment, SubtitleSegment } from "../../lib/types/pipeline";
 
 export interface Scene {
   id: number;
@@ -15,18 +17,25 @@ interface ShortsCenterPanelProps {
   onLanguageChange?: (lang: string) => void;
   selectedSceneId?: number | null;
   onSceneSelect?: (id: number | null) => void;
+  pipelineSegments?: PipelineSegment[];
+  onSegmentUpdate?: (segmentId: string, updates: Partial<PipelineSegment>) => void;
+  onVoiceChange?: (segmentId: string, voiceId: string) => Promise<void>;
+  onSegmentRetranslate?: (segmentId: string, newText: string) => Promise<void>;
+  subtitleSegments?: SubtitleSegment[];
+  onSubtitleSegmentUpdate?: (parentSegId: string, subtitleIndex: number, updates: Partial<SubtitleSegment>) => void;
 }
 
-const languageNames: Record<string, { name: string; flag: string }> = {
-  ko: { name: "한국어", flag: "🇰🇷" },
-  en: { name: "English", flag: "🇺🇸" },
-  ja: { name: "日本語", flag: "🇯🇵" },
-  zh: { name: "中文", flag: "🇨🇳" },
-  es: { name: "Español", flag: "🇪🇸" },
-  vi: { name: "Tiếng Việt", flag: "🇻🇳" },
-  th: { name: "ภาษาไทย", flag: "🇹🇭" },
-  id: { name: "Bahasa", flag: "🇮🇩" },
-};
+const languageNames: Record<string, { name: string; flag: string }> = {};
+SUPPORTED_LANGUAGES.forEach((lang) => {
+  languageNames[lang.code] = { name: lang.name, flag: lang.flag };
+});
+
+// 타임스탬프 포맷 (MM:SS)
+function formatSegTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 // 다국어 번역 함수 (더미)
 function translateScene(scene: Scene, targetLang: string): Scene {
@@ -146,6 +155,35 @@ const defaultVoiceByLang: Record<string, string> = {
   en: "john",
 };
 
+// Google Cloud TTS Chirp 3 HD 음성 목록 (파이프라인 모드)
+export const CHIRP3_HD_VOICES: { voiceId: string; name: string; language: string; gender: string }[] = [
+  { voiceId: "ko-KR-Chirp3-HD-Koa", name: "Koa", language: "ko", gender: "female" },
+  { voiceId: "ko-KR-Chirp3-HD-Sun", name: "Sun", language: "ko", gender: "male" },
+  { voiceId: "ko-KR-Chirp3-HD-Hana", name: "Hana", language: "ko", gender: "female" },
+  { voiceId: "ko-KR-Chirp3-HD-Jin", name: "Jin", language: "ko", gender: "male" },
+  { voiceId: "ko-KR-Chirp3-HD-Yuna", name: "Yuna", language: "ko", gender: "female" },
+  { voiceId: "en-US-Chirp3-HD-Aria", name: "Aria", language: "en", gender: "female" },
+  { voiceId: "en-US-Chirp3-HD-Liam", name: "Liam", language: "en", gender: "male" },
+  { voiceId: "en-US-Chirp3-HD-Nova", name: "Nova", language: "en", gender: "female" },
+  { voiceId: "en-US-Chirp3-HD-Orion", name: "Orion", language: "en", gender: "male" },
+  { voiceId: "en-US-Chirp3-HD-Sage", name: "Sage", language: "en", gender: "female" },
+  { voiceId: "ja-JP-Chirp3-HD-Aoi", name: "Aoi", language: "ja", gender: "female" },
+  { voiceId: "ja-JP-Chirp3-HD-Haruto", name: "Haruto", language: "ja", gender: "male" },
+  { voiceId: "ja-JP-Chirp3-HD-Mio", name: "Mio", language: "ja", gender: "female" },
+  { voiceId: "ja-JP-Chirp3-HD-Ren", name: "Ren", language: "ja", gender: "male" },
+  { voiceId: "ja-JP-Chirp3-HD-Sakura", name: "Sakura", language: "ja", gender: "female" },
+  { voiceId: "cmn-CN-Chirp3-HD-Lian", name: "Lian", language: "zh", gender: "female" },
+  { voiceId: "cmn-CN-Chirp3-HD-Wei", name: "Wei", language: "zh", gender: "male" },
+  { voiceId: "cmn-CN-Chirp3-HD-Mei", name: "Mei", language: "zh", gender: "female" },
+  { voiceId: "cmn-CN-Chirp3-HD-Jun", name: "Jun", language: "zh", gender: "male" },
+  { voiceId: "cmn-CN-Chirp3-HD-Xia", name: "Xia", language: "zh", gender: "female" },
+  { voiceId: "es-US-Chirp3-HD-Luna", name: "Luna", language: "es", gender: "female" },
+  { voiceId: "es-US-Chirp3-HD-Diego", name: "Diego", language: "es", gender: "male" },
+  { voiceId: "es-US-Chirp3-HD-Sofia", name: "Sofia", language: "es", gender: "female" },
+  { voiceId: "es-US-Chirp3-HD-Mateo", name: "Mateo", language: "es", gender: "male" },
+  { voiceId: "es-US-Chirp3-HD-Valentina", name: "Valentina", language: "es", gender: "female" },
+];
+
 export function ShortsCenterPanel({ 
   scenes,
   onScenesChange,
@@ -154,15 +192,49 @@ export function ShortsCenterPanel({
   onLanguageChange,
   selectedSceneId,
   onSceneSelect,
+  pipelineSegments,
+  subtitleSegments,
+  onSegmentUpdate,
+  onVoiceChange,
+  onSegmentRetranslate,
+  onSubtitleSegmentUpdate,
 }: ShortsCenterPanelProps) {
-  // 각 씬별 음성 드롭다운 열림 상태
+  // 각 씨별 음성 드롭다운 열림 상태
   const [openVoiceDropdownId, setOpenVoiceDropdownId] = useState<number | null>(null);
-  // 각 씬별 선택된 음성 (언어별로 관리)
+  // 각 씨별 선택된 음성 (언어별로 관리)
   const [sceneVoices, setSceneVoices] = useState<Record<number, Record<string, string>>>({});
+  // 파이프라인 모드: 재생성/재번역 로딩 상태
+  const [loadingSegId, setLoadingSegId] = useState<string | null>(null);
+  void onSegmentRetranslate;
+  // 자막 분할 세그먼트 열림/닫힘 상태
+  const [openSubtitleSegIds, setOpenSubtitleSegIds] = useState<Set<string>>(new Set());
+  const isSourceLang = selectedLanguage === 'ko';
 
-  // 현재 언어에 맞는 음성 목록 가져오기
+  // 자막 세그먼트를 부모 TTS 세그먼트 ID별로 그룹핑
+  const subtitlesBySegId = useMemo(() => {
+    if (!subtitleSegments) return {} as Record<string, SubtitleSegment[]>;
+    const map: Record<string, SubtitleSegment[]> = {};
+    for (const sub of subtitleSegments) {
+      if (!map[sub.id]) map[sub.id] = [];
+      map[sub.id].push(sub);
+    }
+    return map;
+  }, [subtitleSegments]);
+
+  const toggleSubtitleSeg = (segId: string) => {
+    setOpenSubtitleSegIds(prev => {
+      const next = new Set(prev);
+      if (next.has(segId)) next.delete(segId);
+      else next.add(segId);
+      return next;
+    });
+  };
+
+  // 현재 언어에 맞는 음성 목록 가져오기 (fallback 모드)
   const currentVoices = ttsVoicesByLang[selectedLanguage] || ttsVoicesByLang.ko;
   const defaultVoiceId = defaultVoiceByLang[selectedLanguage] || "minsu";
+  // 파이프라인 모드: 선택된 언어에 해당하는 Chirp 음성 목록
+  const pipelineVoices = CHIRP3_HD_VOICES.filter(v => v.language === selectedLanguage);
 
   const getSceneVoice = (sceneId: number) => {
     const voiceId = sceneVoices[sceneId]?.[selectedLanguage] || defaultVoiceId;
@@ -180,13 +252,54 @@ export function ShortsCenterPanel({
     setOpenVoiceDropdownId(null);
   };
 
-  // 현재 선택된 언어에 맞게 scenes 번역
-  const displayScenes = scenes.map(s => translateScene(s, selectedLanguage));
+  // 파이프라인 모드: 음성 변경 + TTS 재생성
+  const handlePipelineVoiceChange = useCallback(async (segId: string, voiceId: string) => {
+    if (!onVoiceChange) return;
+    setLoadingSegId(segId);
+    try {
+      await onVoiceChange(segId, voiceId);
+    } finally {
+      setLoadingSegId(null);
+    }
+    setOpenVoiceDropdownId(null);
+  }, [onVoiceChange]);
+
+  // 파이프라인 모드: 번역 텍스트 편집 후 blur 시 저장
+  const handlePipelineTextBlur = useCallback((seg: PipelineSegment, newText: string) => {
+    if (isSourceLang) {
+      if (newText === seg.originalText) return;
+      onSegmentUpdate?.(seg.id, { originalText: newText });
+    } else {
+      if (newText === seg.translatedText) return; // 변경 없으면 무시
+      onSegmentUpdate?.(seg.id, { translatedText: newText });
+    }
+  }, [onSegmentUpdate, selectedLanguage]);
+
+  // 파이프라인 모드: TTS 재생성 버튼
+  const handleRegenerate = useCallback(async (seg: PipelineSegment) => {
+    if (!onVoiceChange) return;
+    setLoadingSegId(seg.id);
+    try {
+      await onVoiceChange(seg.id, seg.voiceId);
+    } finally {
+      setLoadingSegId(null);
+    }
+  }, [onVoiceChange]);
+
+  // 파이프라인 데이터가 있으면 그대로 사용, 없으면 더미 번역
+  const displayScenes = pipelineSegments
+    ? scenes
+    : scenes.map(s => translateScene(s, selectedLanguage));
   const totalDuration = scenes.reduce((acc, s) => acc + s.duration, 0);
 
   const handleSceneTextChange = (id: number, text: string) => {
-    // 한국어일 때만 원본 수정 가능
-    if (selectedLanguage === "ko") {
+    // 한국어일 때만 원본 수정 가능 (비파이프라인 모드)
+    if (!pipelineSegments && selectedLanguage === "ko") {
+      const updated = scenes.map((s) => (s.id === id ? { ...s, text } : s));
+      onScenesChange(updated);
+    }
+    // 파이프라인 모드에서는 textarea onChange로 직접 로컬 상태 관리 (blur시 저장)
+    if (pipelineSegments) {
       const updated = scenes.map((s) => (s.id === id ? { ...s, text } : s));
       onScenesChange(updated);
     }
@@ -257,6 +370,7 @@ export function ShortsCenterPanel({
         {/* Scenes List */}
         {displayScenes.map((scene, idx) => {
           const isActive = selectedSceneId === scene.id;
+          const seg = pipelineSegments?.[idx];
           return (
             <div
               key={scene.id}
@@ -281,22 +395,76 @@ export function ShortsCenterPanel({
               <div className="flex-1 min-w-0">
                 {/* Editable Text */}
                 <textarea
-                  value={scene.text}
-                  onChange={(e) => handleSceneTextChange(scene.id, e.target.value)}
-                  disabled={selectedLanguage !== "ko"}
+                  value={isSourceLang && seg ? seg.originalText : scene.text}
+                  onChange={(e) => {
+                    if (isSourceLang && seg) {
+                      onSegmentUpdate?.(seg.id, { originalText: e.target.value });
+                    } else {
+                      handleSceneTextChange(scene.id, e.target.value);
+                    }
+                  }}
+                  onBlur={seg ? (e) => handlePipelineTextBlur(seg, e.target.value) : undefined}
+                  disabled={!pipelineSegments && selectedLanguage !== "ko"}
                   className={`w-full bg-transparent text-xs md:text-sm leading-relaxed resize-none focus:outline-none ${
-                    selectedLanguage !== "ko" ? "mb-1" : "mb-2"
+                    (!pipelineSegments && selectedLanguage !== "ko") ? "mb-1" : "mb-2"
                   } ${
                     isActive ? "text-gray-900" : "text-gray-700"
-                  } ${selectedLanguage !== "ko" ? "cursor-not-allowed" : ""}`}
+                  } ${(!pipelineSegments && selectedLanguage !== "ko") ? "cursor-not-allowed" : ""}`}
                   rows={1}
                 />
 
-                {/* 원본 한국어 텍스트 (한국어 외 언어 선택 시) */}
-                {selectedLanguage !== "ko" && (
-                  <p className="text-[11px] text-gray-400 mb-2 pl-0.5">
-                    🇰🇷 {scenes.find(s => s.id === scene.id)?.text}
-                  </p>
+                {/* 원본 텍스트: 파이프라인 세그먼트 또는 더미 번역 모드 */}
+                {seg ? (
+                  isSourceLang ? (
+                    <p className="text-[11px] text-gray-400 mb-2 pl-0.5">
+                      🌐 {seg.translatedText}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-400 mb-2 pl-0.5">
+                      🇰🇷 {seg.originalText}
+                    </p>
+                  )
+                ) : (
+                  selectedLanguage !== "ko" && (
+                    <p className="text-[11px] text-gray-400 mb-2 pl-0.5">
+                      🇰🇷 {scenes.find(s => s.id === scene.id)?.text}
+                    </p>
+                  )
+                )}
+
+
+                {/* 자막 분할 세그먼트 */}
+                {seg && subtitlesBySegId[seg.id]?.length > 0 && (
+                  <div className="mb-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => toggleSubtitleSeg(seg.id)}
+                      className="flex items-center gap-1 text-[10px] text-purple-500 font-medium mb-1 hover:text-purple-700 transition-colors"
+                    >
+                      {openSubtitleSegIds.has(seg.id) ? (
+                        <ChevronDown size={10} />
+                      ) : (
+                        <ChevronRight size={10} />
+                      )}
+                      <Scissors size={10} />
+                      <span>자막 분할 ({subtitlesBySegId[seg.id].length}개)</span>
+                    </button>
+                    {openSubtitleSegIds.has(seg.id) && (
+                      <div className="ml-1 pl-2 border-l-2 border-purple-100 space-y-0.5">
+                        {subtitlesBySegId[seg.id].map((sub, subIdx) => (
+                          <div key={subIdx} className="flex items-start gap-2 text-[10px] py-0.5">
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <TimeInput value={sub.startTime} onChange={(v) => onSubtitleSegmentUpdate?.(seg.id, subIdx, { startTime: v })} />
+                              <span className="text-[10px] text-gray-300">~</span>
+                              <TimeInput value={sub.endTime} onChange={(v) => onSubtitleSegmentUpdate?.(seg.id, subIdx, { endTime: v })} />
+                            </div>
+                            <span className="text-gray-600 break-all leading-relaxed">
+                              {sub.translatedText}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Meta/Controls */}
@@ -307,14 +475,32 @@ export function ShortsCenterPanel({
 
                   {/* Voice Selection per Scene */}
                   <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setOpenVoiceDropdownId(openVoiceDropdownId === scene.id ? null : scene.id)}
-                      className="flex items-center gap-1 md:gap-1.5 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-[10px] font-medium rounded transition-colors"
-                    >
-                      <Volume2 size={10} />
-                      <span>{getSceneVoice(scene.id).name}</span>
-                      <ChevronDown size={10} className={`transition-transform ${openVoiceDropdownId === scene.id ? 'rotate-180' : ''}`} />
-                    </button>
+                    {seg ? (
+                      /* 파이프라인 모드: 세그먼트 음성 정보 표시 */
+                      <button
+                        onClick={() => setOpenVoiceDropdownId(openVoiceDropdownId === scene.id ? null : scene.id)}
+                        className="flex items-center gap-1 md:gap-1.5 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-[10px] font-medium rounded transition-colors"
+                        disabled={loadingSegId === seg.id}
+                      >
+                        {loadingSegId === seg.id ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          <Volume2 size={10} />
+                        )}
+                        <span>{seg.voiceName}</span>
+                        <ChevronDown size={10} className={`transition-transform ${openVoiceDropdownId === scene.id ? 'rotate-180' : ''}`} />
+                      </button>
+                    ) : (
+                      /* Fallback 모드: 기존 더미 음성 */
+                      <button
+                        onClick={() => setOpenVoiceDropdownId(openVoiceDropdownId === scene.id ? null : scene.id)}
+                        className="flex items-center gap-1 md:gap-1.5 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-[10px] font-medium rounded transition-colors"
+                      >
+                        <Volume2 size={10} />
+                        <span>{getSceneVoice(scene.id).name}</span>
+                        <ChevronDown size={10} className={`transition-transform ${openVoiceDropdownId === scene.id ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
                     
                     {openVoiceDropdownId === scene.id && (
                       <>
@@ -329,41 +515,91 @@ export function ShortsCenterPanel({
                             </span>
                           </div>
                           <div className="max-h-48 overflow-y-auto">
-                            {currentVoices.map((voice) => {
-                              const isSelected = getSceneVoice(scene.id).id === voice.id;
-                              const isMale = voice.gender === '남성' || voice.gender === '男性' || voice.gender === 'Male';
-                              return (
-                                <button
-                                  key={voice.id}
-                                  onClick={() => handleVoiceChange(scene.id, voice.id)}
-                                  className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors ${
-                                    isSelected ? 'bg-blue-50' : ''
-                                  }`}
-                                >
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                                    isMale 
-                                      ? 'bg-gradient-to-br from-blue-400 to-indigo-500' 
-                                      : 'bg-gradient-to-br from-pink-400 to-rose-500'
-                                  }`}>
-                                    <Volume2 size={10} className="text-white" />
-                                  </div>
-                                  <div className="flex-1 text-left">
-                                    <p className={`text-xs font-medium ${isSelected ? 'text-blue-600' : 'text-gray-900'}`}>
-                                      {voice.name}
-                                    </p>
-                                    <p className="text-[10px] text-gray-500">{voice.description} · {voice.gender}</p>
-                                  </div>
-                                  {isSelected && (
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
+                            {seg ? (
+                              pipelineVoices.map((voice) => {
+                                const isSelected = seg.voiceId === voice.voiceId;
+                                const isMale = voice.gender === 'male';
+                                return (
+                                  <button
+                                    key={voice.voiceId}
+                                    onClick={() => handlePipelineVoiceChange(seg.id, voice.voiceId)}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors ${
+                                      isSelected ? 'bg-blue-50' : ''
+                                    }`}
+                                  >
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                                      isMale 
+                                        ? 'bg-gradient-to-br from-blue-400 to-indigo-500' 
+                                        : 'bg-gradient-to-br from-pink-400 to-rose-500'
+                                    }`}>
+                                      <Volume2 size={10} className="text-white" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <p className={`text-xs font-medium ${isSelected ? 'text-blue-600' : 'text-gray-900'}`}>
+                                        {voice.name}
+                                      </p>
+                                      <p className="text-[10px] text-gray-500">{voice.gender === 'male' ? '남성' : '여성'}</p>
+                                    </div>
+                                    {isSelected && (
+                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    )}
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              currentVoices.map((voice) => {
+                                const isSelected = getSceneVoice(scene.id).id === voice.id;
+                                const isMale = voice.gender === '남성' || voice.gender === '男性' || voice.gender === 'Male';
+                                return (
+                                  <button
+                                    key={voice.id}
+                                    onClick={() => handleVoiceChange(scene.id, voice.id)}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors ${
+                                      isSelected ? 'bg-blue-50' : ''
+                                    }`}
+                                  >
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                                      isMale 
+                                        ? 'bg-gradient-to-br from-blue-400 to-indigo-500' 
+                                        : 'bg-gradient-to-br from-pink-400 to-rose-500'
+                                    }`}>
+                                      <Volume2 size={10} className="text-white" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <p className={`text-xs font-medium ${isSelected ? 'text-blue-600' : 'text-gray-900'}`}>
+                                        {voice.name}
+                                      </p>
+                                      <p className="text-[10px] text-gray-500">{voice.description} · {voice.gender}</p>
+                                    </div>
+                                    {isSelected && (
+                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    )}
+                                  </button>
+                                );
+                              })
+                            )}
+                        </div>
                         </div>
                       </>
                     )}
                   </div>
+
+                  {/* TTS 재생성 버튼 (파이프라인 모드) */}
+                  {seg && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRegenerate(seg); }}
+                      disabled={loadingSegId === seg.id}
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+                      title="TTS 재생성"
+                    >
+                      {loadingSegId === seg.id ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={10} />
+                      )}
+                      <span>재생성</span>
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-1 md:gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-auto">
                     <ActionBtn icon={<ImageIcon size={12} className="md:w-3.5 md:h-3.5" />} label="이미지" />
@@ -391,6 +627,33 @@ export function ShortsCenterPanel({
         </button>
       </div>
     </main>
+  );
+}
+
+function TimeInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState(formatSegTime(value));
+
+  useEffect(() => {
+    setText(formatSegTime(value));
+  }, [value]);
+
+  const handleBlur = () => {
+    const parts = text.split(':');
+    if (parts.length === 2) {
+      const mins = parseInt(parts[0]) || 0;
+      const secs = parseFloat(parts[1]) || 0;
+      onChange(mins * 60 + secs);
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={handleBlur}
+      className="w-[52px] text-[10px] font-mono text-blue-500 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 text-center focus:outline-none focus:ring-1 focus:ring-blue-300"
+    />
   );
 }
 
