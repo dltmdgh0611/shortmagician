@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import { openUrl } from "../lib/openUrl";
 import { useNavigate } from "react-router-dom";
+import { getVersion } from "@tauri-apps/api/app";
 
 interface YouTubeChannel {
   id: string;
@@ -97,6 +98,12 @@ export function Settings() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pwValidation, setPwValidation] = useState<string | null>(null);
+
+  // App version
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    getVersion().then((v) => setAppVersion(v)).catch(() => setAppVersion(""));
+  }, []);
 
   // Lab state
   const [labPassword, setLabPassword] = useState("");
@@ -632,6 +639,11 @@ export function Settings() {
             )}
           </div>
         </Section>
+
+        {/* 버전 정보 */}
+        {appVersion && (
+          <p className="text-center text-xs text-gray-400 pt-2">v{appVersion}</p>
+        )}
       </div>
     </div>
   );
