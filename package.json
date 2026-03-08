@@ -1,7 +1,7 @@
 {
   "name": "shortmagician",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.4",
   "type": "module",
   "scripts": {
     "kill-port": "cmd /c \"for /f \\\"tokens=5\\\" %a in ('netstat -ano ^| findstr :1420 ^| findstr LISTENING') do taskkill /F /PID %a\" 2>nul || echo port 1420 free",

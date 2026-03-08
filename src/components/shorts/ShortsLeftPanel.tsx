@@ -61,9 +61,10 @@ export function ShortsLeftPanel({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalTime, setTotalTime] = useState(60);
-  const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
+  const [totalTime, setTotalTime] = useState(0);
+  const progress = totalTime > 0 ? Math.min((currentTime / totalTime) * 100, 100) : 0;
   const [isRecomposing, setIsRecomposing] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -125,15 +126,26 @@ export function ShortsLeftPanel({
     let blobUrl: string | null = null;
 
     async function loadAudio() {
-      if (!mergedTtsPath) return;
+      if (!mergedTtsPath) {
+        setAudioUrl(null);
+        setAudioReady(false);
+        return;
+      }
       try {
         const { readFile } = await import("@tauri-apps/plugin-fs");
         const bytes = await readFile(mergedTtsPath);
         const blob = new Blob([bytes], { type: "audio/mpeg" });
         blobUrl = URL.createObjectURL(blob);
-        if (!revoked) setAudioUrl(blobUrl);
+        if (!revoked) {
+          setAudioUrl(blobUrl);
+          setAudioReady(false); // Reset until canplaythrough fires
+        }
       } catch (err) {
         console.warn("[Preview] TTS audio load failed:", mergedTtsPath, err);
+        if (!revoked) {
+          setAudioUrl(null);
+          setAudioReady(false);
+        }
       }
     }
 
@@ -167,8 +179,14 @@ export function ShortsLeftPanel({
     const a = audioRef.current;
     if (!v) return;
     if (v.paused) {
+      // Sync audio to video position before playing
+      if (a) {
+        a.currentTime = v.currentTime;
+      }
       v.play().catch(err => console.warn("[Preview] Video play failed:", err));
-      a?.play().catch(err => console.warn("[Preview] Audio play failed:", err));
+      if (a && audioReady) {
+        a.play().catch(err => console.warn("[Preview] Audio play failed:", err));
+      }
       setIsPlaying(true);
     } else {
       v.pause();
@@ -190,35 +208,78 @@ export function ShortsLeftPanel({
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onPlay = () => { rafRef.current = requestAnimationFrame(pollTime); };
+    const onPlay = () => {
+      rafRef.current = requestAnimationFrame(pollTime);
+      // Also start audio if ready
+      const a = audioRef.current;
+      if (a && audioReady) {
+        a.currentTime = v.currentTime;
+        a.play().catch(() => {});
+      }
+    };
     const onPauseOrEnd = () => {
       cancelAnimationFrame(rafRef.current);
       setCurrentTime(v.currentTime);
-      // Sync audio position on seek
+      // Sync audio position on pause/seek
       const a = audioRef.current;
-      if (a && Math.abs(a.currentTime - v.currentTime) > 0.1) {
-        a.currentTime = v.currentTime;
+      if (a) {
+        a.pause();
+        if (Math.abs(a.currentTime - v.currentTime) > 0.1) {
+          a.currentTime = v.currentTime;
+        }
+      }
+    };
+    // Fallback: timeupdate fires ~4x/sec, ensures progress bar moves even if rAF has issues
+    const onTimeUpdate = () => {
+      if (v.paused) setCurrentTime(v.currentTime);
+    };
+    // Also capture duration from durationchange (handles Infinity → finite transitions)
+    const onDurationChange = () => {
+      if (v.duration && isFinite(v.duration)) {
+        setTotalTime(v.duration);
       }
     };
     v.addEventListener('play', onPlay);
     v.addEventListener('pause', onPauseOrEnd);
     v.addEventListener('seeked', onPauseOrEnd);
+    v.addEventListener('timeupdate', onTimeUpdate);
+    v.addEventListener('durationchange', onDurationChange);
     return () => {
       cancelAnimationFrame(rafRef.current);
       v.removeEventListener('play', onPlay);
       v.removeEventListener('pause', onPauseOrEnd);
       v.removeEventListener('seeked', onPauseOrEnd);
+      v.removeEventListener('timeupdate', onTimeUpdate);
+      v.removeEventListener('durationchange', onDurationChange);
     };
-  }, [videoUrl, pollTime]);
+  }, [videoUrl, pollTime, audioReady]);
 
   const handleLoadedMetadata = () => {
     const v = videoRef.current;
-    if (v) setTotalTime(v.duration);
+    if (v && v.duration && isFinite(v.duration)) {
+      setTotalTime(v.duration);
+    }
   };
 
   const handleEnded = () => {
     setIsPlaying(false);
-    audioRef.current?.pause();
+    const a = audioRef.current;
+    if (a) {
+      a.pause();
+      a.currentTime = 0;
+    }
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const v = videoRef.current;
+    if (!v || totalTime <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const seekTo = ratio * totalTime;
+    v.currentTime = seekTo;
+    const a = audioRef.current;
+    if (a) a.currentTime = seekTo;
+    setCurrentTime(seekTo);
   };
 
   const showBlur = blurRegion?.enabled && onBlurRegionChange;
@@ -260,6 +321,11 @@ export function ShortsLeftPanel({
                     ref={audioRef}
                     src={audioUrl}
                     preload="auto"
+                    onCanPlayThrough={() => setAudioReady(true)}
+                    onError={(e) => {
+                      console.warn("[Preview] Audio element error:", e);
+                      setAudioReady(false);
+                    }}
                   />
                 )}
               </>
@@ -394,12 +460,15 @@ export function ShortsLeftPanel({
         {/* Playback Controls with Progress */}
         <div className="bg-white rounded-xl border border-gray-200 shrink-0 shadow-sm overflow-hidden">
           {/* Progress Bar */}
-          <div className="h-1 bg-gray-200 cursor-pointer group/progress">
+          <div
+            className="h-2 bg-gray-200 cursor-pointer group/progress hover:h-3 transition-[height]"
+            onClick={handleProgressClick}
+          >
             <div 
-              className="h-full bg-blue-500 relative transition-all"
+              className="h-full bg-blue-500 relative"
               style={{ width: `${progress}%` }}
             >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-blue-500 rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity" />
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity shadow-sm" />
             </div>
           </div>
 

@@ -251,6 +251,18 @@ export function Settings() {
 
   const email = state.user?.email || "";
 
+  // Block UI until profile + YouTube channels are loaded
+  const pageLoading = state.status === "loading" || ytLoading;
+
+  if (pageLoading) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <Loader2 size={32} className="animate-spin text-blue-500" />
+        <span className="text-sm text-gray-400">설정을 불러오는 중...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-8">설정</h2>

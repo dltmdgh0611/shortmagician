@@ -114,5 +114,8 @@ async def transcribe_audio(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Whisper transcription failed: {e}")
-        raise HTTPException(status_code=500, detail="음성 변환에 실패했습니다")
+        logger.error(f"Whisper transcription failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"음성 변환에 실패했습니다: {type(e).__name__}: {e}",
+        )
