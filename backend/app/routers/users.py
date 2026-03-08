@@ -32,7 +32,6 @@ def create_or_get_user(
             plan=data.get("plan", "free"),
             subscription_status=data.get("subscription_status", "none"),
             quota=data.get("quota", {}),
-            notification_enabled=data.get("notification_enabled", True),
         )
 
     # Create new profile
@@ -82,7 +81,6 @@ def get_my_profile(
         plan=data.get("plan", "free"),
         subscription_status=data.get("subscription_status", "none"),
         quota=data.get("quota", {}),
-        notification_enabled=data.get("notification_enabled", True),
     )
 
 
@@ -106,9 +104,6 @@ def update_my_profile(
     updates: dict = {"updated_at": datetime.now(timezone.utc)}
     if update_data.display_name is not None:
         updates["display_name"] = update_data.display_name
-    if update_data.notification_enabled is not None:
-        updates["notification_enabled"] = update_data.notification_enabled
-
     doc_ref.update(updates)
 
     # Return updated profile
@@ -122,5 +117,4 @@ def update_my_profile(
         plan=data.get("plan", "free"),
         subscription_status=data.get("subscription_status", "none"),
         quota=data.get("quota", {}),
-        notification_enabled=data.get("notification_enabled", True),
     )

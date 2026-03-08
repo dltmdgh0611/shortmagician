@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, User, Lock, HelpCircle, ChevronRight, Youtube, Plus, Trash2, Gift, Loader2, ExternalLink, Check, FlaskConical } from "lucide-react";
+import { User, Lock, HelpCircle, ChevronRight, Youtube, Plus, Trash2, Gift, Loader2, ExternalLink, Check, FlaskConical } from "lucide-react";
 import { useEarlybirdModal } from "../App";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
@@ -97,10 +97,6 @@ export function Settings() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pwValidation, setPwValidation] = useState<string | null>(null);
-
-  // Notification state
-  const notificationEnabled = state.profile?.notificationEnabled ?? true;
-  const [notifToggling, setNotifToggling] = useState(false);
 
   // Lab state
   const [labPassword, setLabPassword] = useState("");
@@ -234,18 +230,6 @@ export function Settings() {
       }
     } finally {
       setPwSaving(false);
-    }
-  };
-
-  // Notification toggle
-  const handleNotifToggle = async () => {
-    setNotifToggling(true);
-    try {
-      await updateUserProfile({ notificationEnabled: !notificationEnabled });
-    } catch {
-      // silent — profile refresh will correct state
-    } finally {
-      setNotifToggling(false);
     }
   };
 
@@ -593,32 +577,6 @@ export function Settings() {
                 </div>
               </div>
             )}
-          </div>
-        </Section>
-
-        {/* 앱 설정 */}
-        <Section title="앱 설정">
-          {/* 알림 설정 — toggle switch */}
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3 text-gray-700">
-              <Bell size={18} />
-              <span className="text-sm font-medium">알림 설정</span>
-            </div>
-            <button
-              onClick={handleNotifToggle}
-              disabled={notifToggling}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none ${
-                notificationEnabled ? "bg-blue-500" : "bg-gray-300"
-              } ${notifToggling ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              role="switch"
-              aria-checked={notificationEnabled}
-            >
-              <span
-                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                  notificationEnabled ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
           </div>
         </Section>
 

@@ -78,13 +78,14 @@ const moreTemplates: Template[] = [
   },
 ];
 
-export function TemplateModal({ isOpen, onClose, onSelect }: TemplateModalProps) {
+export function TemplateModal({ isOpen, onClose }: TemplateModalProps) {
   const [showMore, setShowMore] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSelect = (templateId: string) => {
-    onSelect(templateId);
+  const handleSelect = () => {
+    alert("아직 준비중인 기능입니다. 곧 업데이트 예정입니다!");
+    return;
   };
 
   return (
@@ -126,7 +127,7 @@ export function TemplateModal({ isOpen, onClose, onSelect }: TemplateModalProps)
               {popularTemplates.map((template) => (
                 <button
                   key={template.id}
-                  onClick={() => handleSelect(template.id)}
+                  onClick={() => handleSelect()}
                   className="group relative bg-gray-50 rounded-2xl overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all hover:shadow-lg"
                 >
                   {/* Image */}
@@ -178,7 +179,7 @@ export function TemplateModal({ isOpen, onClose, onSelect }: TemplateModalProps)
                 {moreTemplates.map((template) => (
                   <button
                     key={template.id}
-                    onClick={() => handleSelect(template.id)}
+                    onClick={() => handleSelect()}
                     className="group relative bg-gray-50 rounded-2xl overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all hover:shadow-lg"
                   >
                     <div className="aspect-[3/4] overflow-hidden bg-gray-100">

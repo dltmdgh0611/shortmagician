@@ -30,7 +30,13 @@ function UpdateBanner() {
     let cancelled = false;
     (async () => {
       try {
-        const update = await check();
+        const ghToken = import.meta.env.VITE_GITHUB_TOKEN as string | undefined;
+        const update = await check({
+          headers: {
+            ...(ghToken ? { Authorization: `token ${ghToken}` } : {}),
+            Accept: "application/octet-stream",
+          },
+        });
         if (cancelled || !update) return;
         setVersion(update.version);
         setStatus("available");

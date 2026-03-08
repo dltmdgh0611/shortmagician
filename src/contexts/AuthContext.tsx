@@ -23,7 +23,7 @@ const mapBackendProfile = (data: any): UserProfile => ({
   plan: data.plan,
   subscriptionStatus: data.subscription_status,
   quota: data.quota,
-  notificationEnabled: data.notification_enabled ?? true,
+
   createdAt: data.created_at,
   updatedAt: data.updated_at,
 });
@@ -39,7 +39,6 @@ export interface UserProfile {
     used: number;
     limit: number;
   };
-  notificationEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,7 +56,7 @@ export interface AuthContextType {
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateUserProfile: (data: { displayName?: string; notificationEnabled?: boolean }) => Promise<void>;
+  updateUserProfile: (data: { displayName?: string }) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   isNewSignup: boolean;
   clearNewSignup: () => void;
@@ -225,7 +224,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUserProfile = async (data: {
     displayName?: string;
-    notificationEnabled?: boolean;
   }): Promise<void> => {
     if (auth === null) {
       throw new Error("Firebase 인증을 사용할 수 없습니다");
@@ -239,7 +237,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Update backend profile
     const payload: Record<string, unknown> = {};
     if (data.displayName !== undefined) payload.display_name = data.displayName;
-    if (data.notificationEnabled !== undefined) payload.notification_enabled = data.notificationEnabled;
 
     await api.patch("/api/v1/users/me", payload);
 

@@ -20,7 +20,6 @@ class UserResponse(BaseModel):
     plan: str = "free"
     subscription_status: str = "none"
     quota: dict = {}
-    notification_enabled: bool = True
 
 
 # Alias for UserResponse
@@ -30,7 +29,6 @@ UserProfile = UserResponse
 class UserUpdateRequest(BaseModel):
     """Schema for updating user profile."""
     display_name: str | None = None
-    notification_enabled: bool | None = None
 
 
 class YouTubeAuthUrlResponse(BaseModel):
