@@ -11,11 +11,80 @@ import { Upload } from "./pages/Upload";
 import { Settings } from "./pages/Settings";
 import { ShortsEditor } from "./pages/ShortsEditor";
 import { Lab } from "./pages/Lab";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download, X } from "lucide-react";
 import { api } from "./lib/api";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 const EarlybirdModalContext = createContext<{ open: () => void } | null>(null);
 export const useEarlybirdModal = () => useContext(EarlybirdModalContext);
+
+// ── Auto-update banner ──────────────────────────────────────────────────────
+function UpdateBanner() {
+  const [status, setStatus] = useState<"idle" | "available" | "downloading" | "done" | "error">("idle");
+  const [progress, setProgress] = useState(0);
+  const [version, setVersion] = useState("");
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const update = await check();
+        if (cancelled || !update) return;
+        setVersion(update.version);
+        setStatus("available");
+
+        // Auto-start download
+        setStatus("downloading");
+        let contentLength = 0;
+        let downloaded = 0;
+        await update.downloadAndInstall((event) => {
+          if (event.event === "Started") {
+            contentLength = event.data.contentLength ?? 0;
+          } else if (event.event === "Progress") {
+            downloaded += event.data.chunkLength;
+            if (contentLength > 0) setProgress(Math.round((downloaded / contentLength) * 100));
+          } else if (event.event === "Finished") {
+            setProgress(100);
+          }
+        });
+        if (!cancelled) {
+          setStatus("done");
+          // Auto-relaunch after brief delay
+          setTimeout(() => relaunch(), 1500);
+        }
+      } catch (e) {
+        console.error("Update check failed:", e);
+        if (!cancelled) setStatus("error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (status === "idle" || status === "error" || dismissed) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[9999] bg-blue-600 text-white px-4 py-2.5 flex items-center justify-center gap-3 text-sm shadow-lg animate-slideDown">
+      <Download size={16} className={status === "downloading" ? "animate-bounce" : ""} />
+      {status === "available" && <span>새 버전 {version}을 다운로드 중...</span>}
+      {status === "downloading" && (
+        <div className="flex items-center gap-3">
+          <span>업데이트 다운로드 중... {progress}%</span>
+          <div className="w-32 h-1.5 bg-blue-400 rounded-full overflow-hidden">
+            <div className="h-full bg-white rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+      {status === "done" && <span>업데이트 완료! 앱을 재시작합니다...</span>}
+      {status !== "done" && (
+        <button onClick={() => setDismissed(true)} className="p-1 hover:bg-blue-500 rounded transition-colors ml-2">
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 // Inner component that uses useAuth (must be inside AuthProvider)
 function AppContent() {
@@ -87,6 +156,9 @@ function AppContent() {
 
   return (
     <>
+      {/* Auto-update banner */}
+      <UpdateBanner />
+
       {/* Auth Modal — shown when unauthenticated */}
       <AuthModal
         isOpen={state.status === "unauthenticated"}

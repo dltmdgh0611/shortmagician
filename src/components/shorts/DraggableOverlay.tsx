@@ -27,6 +27,8 @@ interface DraggableOverlayProps {
   children?: ReactNode;
   /** Called on pointer-down before drag starts (use for selection) */
   onInteract?: () => void;
+  /** Called when the delete button is clicked */
+  onDelete?: () => void;
 }
 
 export function DraggableOverlay({
@@ -41,6 +43,7 @@ export function DraggableOverlay({
   overlayStyle,
   children,
   onInteract,
+  onDelete,
 }: DraggableOverlayProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -205,6 +208,39 @@ export function DraggableOverlay({
             />
           ))}
         </>
+      )}
+
+      {/* Delete button — shown on hover */}
+      {onDelete && (isHovering || active) && (
+        <div
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          style={{
+            position: 'absolute',
+            top: '-12px',
+            right: '-12px',
+            width: '22px',
+            height: '22px',
+            background: '#ef4444',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: zIndex + 10,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+            transition: 'transform 0.1s',
+          }}
+          title="삭제"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
+            <line x1="1" y1="1" x2="9" y2="9" />
+            <line x1="9" y1="1" x2="1" y2="9" />
+          </svg>
+        </div>
       )}
 
       {/* Center label — shown on hover when no children */}

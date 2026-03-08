@@ -9,9 +9,12 @@ import {
   ChevronLeft,
   ChevronDown,
   Youtube,
+  Pencil,
 } from "lucide-react";
 
 interface ShortsTopbarProps {
+  projectName?: string;
+  onProjectNameChange?: (name: string) => void;
   onFileExport?: () => void;
   onYouTubeExport?: () => void;
   onSave?: () => void;
@@ -20,11 +23,33 @@ interface ShortsTopbarProps {
   onAddText?: () => void;
 }
 
-export function ShortsTopbar({ onFileExport, onYouTubeExport, onSave, blurEnabled, onToggleBlur, onAddText }: ShortsTopbarProps) {
+export function ShortsTopbar({ projectName, onProjectNameChange, onFileExport, onYouTubeExport, onSave, blurEnabled, onToggleBlur, onAddText }: ShortsTopbarProps) {
   const navigate = useNavigate();
   const [showElementToast, setShowElementToast] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Inline project name editing
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(projectName || "");
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  const commitNameEdit = () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== projectName) {
+      onProjectNameChange?.(trimmed);
+    } else {
+      setEditName(projectName || "");
+    }
+    setIsEditingName(false);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -46,15 +71,52 @@ export function ShortsTopbar({ onFileExport, onYouTubeExport, onSave, blurEnable
 
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center px-2 md:px-4 shrink-0 select-none">
-      {/* Left: Home Button */}
-      <div className="flex-1 flex items-center gap-2">
+      {/* Left: Home Button + Project Name */}
+      <div className="flex-1 flex items-center gap-2 min-w-0">
         <button
           onClick={() => navigate("/")}
-          className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+          className="shrink-0 flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
         >
           <ChevronLeft size={18} />
           <span className="hidden sm:inline">홈으로</span>
         </button>
+        {projectName !== undefined && (
+          <div className="hidden sm:flex items-center gap-1 min-w-0">
+            <span className="text-gray-300 text-sm select-none">/</span>
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={commitNameEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitNameEdit();
+                  if (e.key === "Escape") {
+                    setEditName(projectName || "");
+                    setIsEditingName(false);
+                  }
+                }}
+                className="px-2 py-1 text-sm font-medium text-gray-800 bg-white border border-blue-300 rounded-lg outline-none ring-2 ring-blue-500/20 min-w-[80px] max-w-[200px]"
+                maxLength={50}
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setEditName(projectName || "");
+                  setIsEditingName(true);
+                }}
+                className="group flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors min-w-0"
+                title="프로젝트 이름 수정"
+              >
+                <span className="text-sm font-medium text-gray-700 truncate max-w-[160px]">
+                  {projectName}
+                </span>
+                <Pencil size={12} className="shrink-0 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Center: Tools - Hidden on mobile, shown on md+ */}

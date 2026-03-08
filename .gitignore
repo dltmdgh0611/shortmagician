@@ -23,6 +23,31 @@ __pycache__
 venv
 env
 
+# PyInstaller
+backend/dist/
+backend/build/
+backend/*.spec
+backend/app/_secrets.py
+
+# Portable release
+release/
+
+# Signing keys (NEVER commit)
+*.tauri/
+shortmagician*.key
+shortmagician*.key.pub
+Users82109*
+
+# Build scripts with secrets
+scripts/build-signed.cmd
+scripts/build-signed.bat
+
+# Release artifacts
+latest.json
+
+# Backend binary (too large for git, bundled via release)
+src-tauri/resources/backend.exe
+
 # Env
 .env
 backend/.env

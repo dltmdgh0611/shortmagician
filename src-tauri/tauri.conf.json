@@ -24,7 +24,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,7 +38,24 @@
       "binaries/ffprobe"
     ],
     "resources": [
-      "resources/fonts/*"
-    ]
+      "resources/fonts/*",
+      "resources/backend.exe"
+    ],
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "displayLanguageSelector": false,
+        "languages": ["Korean", "English"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1QzJDNTBCOTZDNDk3RDUKUldUVmw4U1dDOFhDeFduRkw5TllEd0thT0d0QTRQWnRUZTBlS1ZWZ3pKSUVKYXRRYmx4am45c3gK",
+      "endpoints": [
+        "https://github.com/dltmdgh0611/shortmagician/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

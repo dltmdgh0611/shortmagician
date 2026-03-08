@@ -38,21 +38,33 @@ export async function extractAudio(
   // ── 2. Run FFmpeg sidecar ───────────────────────────────────────────────────
   onProgress?.("extracting", "오디오를 추출하는 중...");
 
-  const result = await Command.sidecar("binaries/ffmpeg", [
-    "-i",
-    videoPath,
-    "-vn",
-    "-acodec",
-    "libmp3lame",
-    "-ar",
-    "16000",
-    "-ac",
-    "1",
-    "-b:a",
-    "64k",
-    "-y",
-    outputPath,
-  ]).execute();
+  console.log("[AudioExtractor] Input:", videoPath);
+  console.log("[AudioExtractor] Output:", outputPath);
+
+  let result;
+  try {
+    result = await Command.sidecar("binaries/ffmpeg", [
+      "-i",
+      videoPath,
+      "-vn",
+      "-acodec",
+      "libmp3lame",
+      "-ar",
+      "16000",
+      "-ac",
+      "1",
+      "-b:a",
+      "64k",
+      "-y",
+      outputPath,
+    ]).execute();
+  } catch (sidecarErr) {
+    const errMsg = typeof sidecarErr === 'string'
+      ? sidecarErr
+      : (sidecarErr instanceof Error ? sidecarErr.message : JSON.stringify(sidecarErr));
+    console.error("[AudioExtractor] Sidecar execution failed:", errMsg, sidecarErr);
+    throw new Error(`FFmpeg sidecar 실행 실패: ${errMsg}`);
+  }
 
   if (result.code !== 0) {
     const stderr = result.stderr.trim();

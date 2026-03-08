@@ -163,6 +163,74 @@ export interface ExportParams {
   onProgress?: (percent: number, message: string) => void;
 }
 
+// ── FFmpeg Error Parser ───────────────────────────────────────────────────────
+
+/**
+ * Parse raw FFmpeg stderr into a user-friendly Korean error message.
+ * Detects common failure patterns and returns actionable guidance.
+ */
+function parseFFmpegError(stderr: string): string {
+  const s = stderr.toLowerCase();
+
+  // Filter/codec errors
+  if (s.includes("boxblur") && s.includes("invalid") && s.includes("radius")) {
+    return "블러 처리에 실패했습니다. 블러 영역이 너무 작아 처리할 수 없습니다. 블러 영역 크기를 키우거나 해상도가 높은 영상을 사용해주세요.";
+  }
+  if (s.includes("no such filter")) {
+    const match = stderr.match(/No such filter:\s*'([^']+)'/i);
+    return `FFmpeg 필터를 찾을 수 없습니다${match ? ` (${match[1]})` : ""}. FFmpeg 설치 상태를 확인해주세요.`;
+  }
+
+  // Input file errors
+  if (s.includes("no such file or directory")) {
+    return "입력 파일을 찾을 수 없습니다. 영상 또는 오디오 파일이 삭제되었을 수 있습니다. 다시 변환 후 내보내기를 시도해주세요.";
+  }
+  if (s.includes("invalid data found when processing input")) {
+    return "입력 파일이 손상되었거나 지원하지 않는 형식입니다. 다시 변환 후 내보내기를 시도해주세요.";
+  }
+
+  // Codec errors
+  if (s.includes("encoder") && s.includes("not found")) {
+    return "영상 인코더를 찾을 수 없습니다. FFmpeg 설치가 올바른지 확인해주세요.";
+  }
+  if (s.includes("could not open encoder")) {
+    return "영상 인코더를 초기화할 수 없습니다. 필터 설정에 문제가 있을 수 있습니다.";
+  }
+
+  // Subtitle/font errors
+  if (s.includes("ass") && (s.includes("failed") || s.includes("error"))) {
+    return "자막 처리 중 오류가 발생했습니다. 자막 스타일을 변경한 후 다시 시도해주세요.";
+  }
+
+  // Disk space
+  if (s.includes("no space left on device") || s.includes("disk full")) {
+    return "디스크 공간이 부족합니다. 저장 공간을 확보한 후 다시 시도해주세요.";
+  }
+
+  // Permission
+  if (s.includes("permission denied")) {
+    return "파일 접근 권한이 없습니다. 내보내기 폴더의 권한을 확인해주세요.";
+  }
+
+  // Fallback: extract the most informative error line
+  const errorLines = stderr
+    .split("\n")
+    .filter((line) => /error|invalid|fail|cannot|could not/i.test(line))
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (errorLines.length > 0) {
+    // Show first 2 error lines max, trimmed
+    const summary = errorLines
+      .slice(0, 2)
+      .map((l) => (l.length > 120 ? l.slice(0, 120) + "…" : l))
+      .join("\n");
+    return `내보내기 실패:\n${summary}`;
+  }
+
+  return "내보내기 중 알 수 없는 오류가 발생했습니다. 다시 시도해주세요.";
+}
+
 // ── Main Export Function ──────────────────────────────────────────────────────
 
 /**
@@ -220,10 +288,12 @@ export async function exportVideo(params: ExportParams): Promise<string> {
     const wRatio = (br.width / 100).toFixed(4);
     const hRatio = (br.height / 100).toFixed(4);
 
-    // filter_complex: split → blur crop → overlay → burn subs
+    // filter_complex: split → gaussian blur crop → overlay → burn subs
+    // Uses gblur (sigma-based) instead of boxblur to avoid radius limits
+    // on low-res videos or small crop regions.
     const filterComplex = [
       `[0:v]split[main][toblur]`,
-      `[toblur]crop=iw*${wRatio}:ih*${hRatio}:iw*${xRatio}:ih*${yRatio},boxblur=20:10[blurred]`,
+      `[toblur]crop=iw*${wRatio}:ih*${hRatio}:iw*${xRatio}:ih*${yRatio},gblur=sigma=20[blurred]`,
       `[main][blurred]overlay=W*${xRatio}:H*${yRatio},ass=${escapedAss}:fontsdir=${escapedFonts}[vout]`,
     ].join(";");
 
@@ -261,7 +331,7 @@ export async function exportVideo(params: ExportParams): Promise<string> {
   // ── 5. Execute FFmpeg sidecar ─────────────────────────────────────────────
   const result = await Command.sidecar("binaries/ffmpeg", args).execute();
   if (result.code !== 0) {
-    throw new Error(`내보내기 실패: ${result.stderr}`);
+    throw new Error(parseFFmpegError(result.stderr));
   }
 
   params.onProgress?.(100, "내보내기 완료!");

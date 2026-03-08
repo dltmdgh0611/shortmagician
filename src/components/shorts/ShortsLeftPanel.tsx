@@ -132,8 +132,8 @@ export function ShortsLeftPanel({
         const blob = new Blob([bytes], { type: "audio/mpeg" });
         blobUrl = URL.createObjectURL(blob);
         if (!revoked) setAudioUrl(blobUrl);
-      } catch {
-        // Tauri not available (test/web) — ignore
+      } catch (err) {
+        console.warn("[Preview] TTS audio load failed:", mergedTtsPath, err);
       }
     }
 
@@ -167,8 +167,8 @@ export function ShortsLeftPanel({
     const a = audioRef.current;
     if (!v) return;
     if (v.paused) {
-      v.play();
-      a?.play();
+      v.play().catch(err => console.warn("[Preview] Video play failed:", err));
+      a?.play().catch(err => console.warn("[Preview] Audio play failed:", err));
       setIsPlaying(true);
     } else {
       v.pause();
@@ -251,7 +251,7 @@ export function ShortsLeftPanel({
                   onEnded={handleEnded}
                   className="absolute inset-0 w-full h-full rounded-xl border border-gray-200 object-cover shadow-sm"
                   playsInline
-                  muted
+                  muted={!!mergedTtsPath}
                   data-testid="preview-video"
                 />
                 {/* Hidden audio element for TTS playback, synced with video */}
@@ -281,6 +281,7 @@ export function ShortsLeftPanel({
                 width={blurRegion.width}
                 height={blurRegion.height}
                 onChange={(r) => onBlurRegionChange({ ...blurRegion, ...r })}
+                onDelete={() => onBlurRegionChange({ ...blurRegion, enabled: false })}
                 zIndex={5}
                 borderColor="rgba(147, 51, 234, 0.5)"
                 label="자막 블러"
@@ -350,6 +351,7 @@ export function ShortsLeftPanel({
                 height={overlay.height}
                 onChange={(r) => onTextOverlayChange?.(overlay.id, r)}
                 onInteract={() => onTextOverlaySelect?.(overlay.id)}
+                onDelete={() => onTextOverlayDelete?.(overlay.id)}
                 zIndex={20}
                 borderColor={selectedTextOverlayId === overlay.id ? 'rgba(234, 179, 8, 0.8)' : 'rgba(234, 179, 8, 0.3)'}
                 label=""
