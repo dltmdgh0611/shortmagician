@@ -488,12 +488,17 @@ export async function runPipeline(
     // Extract backend error detail from axios response (if available)
     const backendDetail: string | undefined = error.response?.data?.detail;
     const statusCode: number | undefined = error.response?.status;
+    // Tauri plugin errors are often strings, not Error objects
+    const rawMessage = typeof error === 'string'
+      ? error
+      : (error.message || String(error));
     const errorMessage = backendDetail
       ? `[${statusCode}] ${backendDetail}`
-      : error.message || '알 수 없는 오류';
+      : rawMessage || '알 수 없는 오류';
 
     logError('Pipeline failed', error);
     emitLog('error', `❌ 파이프라인 실패: ${errorMessage}`);
+    emitLog('detail', `에러 타입: ${typeof error}, 전체: ${JSON.stringify(error, null, 2)}`);
     if (backendDetail) {
       emitLog('detail', `서버 응답: ${backendDetail}`);
     }

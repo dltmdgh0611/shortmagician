@@ -350,7 +350,7 @@ export function YouTubeUploadModal({
               <p className="text-sm text-gray-500">{headerSubtitle}</p>
             </div>
           </div>
-          {canClose && status !== "uploading" && (
+          {canClose && (
             <button
               onClick={onClose}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"

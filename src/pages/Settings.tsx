@@ -22,9 +22,14 @@ const INPUT_CLASS =
 
 export function Settings() {
   const earlybirdModal = useEarlybirdModal();
-  const { state, updateUserProfile, changePassword } = useAuth();
+  const { state, updateUserProfile, changePassword, refreshProfile } = useAuth();
   const isEarlybird = state.profile?.plan === "earlybird";
   const navigate = useNavigate();
+
+  // Refresh user profile (earlybird plan, etc.) every time Settings page is entered
+  useEffect(() => {
+    refreshProfile();
+  }, [refreshProfile]);
 
   // YouTube connection state
   const [ytChannels, setYtChannels] = useState<YouTubeChannel[]>([]);

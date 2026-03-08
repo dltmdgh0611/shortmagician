@@ -5,6 +5,7 @@ can interact with a thin, mockable interface.
 """
 
 import logging
+import sys
 
 from google.cloud import texttospeech
 
@@ -73,7 +74,28 @@ def get_tts_client() -> texttospeech.TextToSpeechClient:
     global _tts_client
     if _tts_client is None:
         logger.info("Creating shared Google Cloud TTS client")
-        _tts_client = texttospeech.TextToSpeechClient()
+        if getattr(sys, "frozen", False):
+            # Frozen (PyInstaller): use in-memory credentials from embedded secrets
+            try:
+                from app._secrets import get_credentials_dict
+                from google.oauth2 import service_account
+
+                creds_dict = get_credentials_dict()
+                if creds_dict:
+                    creds = service_account.Credentials.from_service_account_info(
+                        creds_dict,
+                        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+                    )
+                    _tts_client = texttospeech.TextToSpeechClient(credentials=creds)
+                    logger.info("TTS client created with embedded credentials")
+                else:
+                    logger.error("Embedded credentials dict is empty")
+                    _tts_client = texttospeech.TextToSpeechClient()
+            except ImportError:
+                logger.warning("_secrets module not found in frozen build, falling back")
+                _tts_client = texttospeech.TextToSpeechClient()
+        else:
+            _tts_client = texttospeech.TextToSpeechClient()
     return _tts_client
 
 

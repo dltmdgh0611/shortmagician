@@ -14,7 +14,7 @@ import { segmentToScene } from "../lib/pipeline/sceneAdapter";
 import type { PipelineSegment, SubtitleSegment, SubtitleStyle } from "../lib/types/pipeline";
 import { DEFAULT_SUBTITLE_STYLE } from "../lib/types/pipeline";
 import { saveProject, loadProject } from "../lib/services/projectService";
-import { generateThumbnail } from "../lib/pipeline/thumbnailService";
+import { generateThumbnail, getThumbnailPath } from "../lib/pipeline/thumbnailService";
 
 import type { SavedProject } from "../lib/services/projectService";
 export interface BlurRegion {
@@ -43,6 +43,7 @@ type MobileTab = "preview" | "script" | "image";
 export function ShortsEditor() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showYouTubeModal, setShowYouTubeModal] = useState(false);
+  const [projectName, setProjectName] = useState("프로젝트");
 
   // Route state: projectId is set when loading a saved project
   const location = useLocation();
@@ -193,6 +194,7 @@ export function ShortsEditor() {
       isLoadedProjectRef.current = true;
 
       // Restore ALL visual state from saved project
+      if (project.name) setProjectName(project.name);
       if (project.subtitleStyle) setSubtitleStyle(project.subtitleStyle);
       if (project.blurRegion) setBlurRegion(project.blurRegion);
       if (project.selectedLanguage) setSelectedLanguage(project.selectedLanguage);
@@ -217,9 +219,13 @@ export function ShortsEditor() {
         if (pipelineResult?.sourceLanguage) langs.add(pipelineResult.sourceLanguage);
         if (pipelineResult?.targetLanguage) langs.add(pipelineResult.targetLanguage);
         setProjectLanguages(Array.from(langs));
-        // Only override selectedLanguage for NEW projects, not loaded ones
+        // Only override selectedLanguage & projectName for NEW projects, not loaded ones
         if (!isLoadedProjectRef.current) {
           setSelectedLanguage(pipelineResult?.targetLanguage || "ko");
+          // Derive name from video filename
+          const derivedName = pipelineResult?.originalVideoPath
+            ?.split(/[\/\\]/).pop()?.replace(/\.[^.]+$/, '');
+          if (derivedName) setProjectName(derivedName);
         }
       }
       return;
@@ -272,10 +278,6 @@ export function ShortsEditor() {
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const projectName = pipelineResult.originalVideoPath
-        ? pipelineResult.originalVideoPath.split(/[\/\\]/).pop()?.replace(/\.[^.]+$/, '') || '프로젝트'
-        : '프로젝트';
-
       let thumbnailPath: string | undefined;
       try {
         const videoForThumb = originalVideoPath || pipelineResult.originalVideoPath;
@@ -283,7 +285,16 @@ export function ShortsEditor() {
           thumbnailPath = await generateThumbnail(videoForThumb, pipelineResult.projectId);
         }
       } catch {
-        // thumbnail generation failed, proceed without thumbnail
+        // Thumbnail generation failed — preserve existing thumbnail if available
+        try {
+          const existingPath = await getThumbnailPath(pipelineResult.projectId);
+          const { exists } = await import("@tauri-apps/plugin-fs");
+          if (await exists(existingPath)) {
+            thumbnailPath = existingPath;
+          }
+        } catch {
+          // No existing thumbnail either
+        }
       }
 
       const project: SavedProject = {
@@ -310,14 +321,10 @@ export function ShortsEditor() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [pipelineResult, subtitleStyle, blurRegion, selectedLanguage, projectLanguages, scenes, textOverlays]);
+  }, [pipelineResult, subtitleStyle, blurRegion, selectedLanguage, projectLanguages, scenes, textOverlays, projectName]);
 
   const handleSave = useCallback(async () => {
     if (!pipelineResult || pipelineResult.status !== 'done') return;
-
-    const projectName = pipelineResult.originalVideoPath
-      ? pipelineResult.originalVideoPath.split(/[\/\\]/).pop()?.replace(/\.[^.]+$/, '') || '프로젝트'
-      : '프로젝트';
 
     let thumbnailPath: string | undefined;
     try {
@@ -325,7 +332,18 @@ export function ShortsEditor() {
       if (videoForThumb) {
         thumbnailPath = await generateThumbnail(videoForThumb, pipelineResult.projectId);
       }
-    } catch {}
+    } catch {
+      // Thumbnail generation failed — preserve existing thumbnail
+      try {
+        const existingPath = await getThumbnailPath(pipelineResult.projectId);
+        const { exists } = await import("@tauri-apps/plugin-fs");
+        if (await exists(existingPath)) {
+          thumbnailPath = existingPath;
+        }
+      } catch {
+        // No existing thumbnail
+      }
+    }
 
     const project: SavedProject = {
       id: pipelineResult.projectId,
@@ -352,14 +370,14 @@ export function ShortsEditor() {
     } catch (err) {
       console.error('Save failed:', err);
     }
-  }, [pipelineResult, subtitleStyle, blurRegion, selectedLanguage, projectLanguages, textOverlays, originalVideoPath]);
+  }, [pipelineResult, subtitleStyle, blurRegion, selectedLanguage, projectLanguages, textOverlays, originalVideoPath, projectName]);
 
   const handleFileExport = () => setShowExportModal(true);
   const handleYouTubeExport = () => setShowYouTubeModal(true);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 text-gray-900 overflow-hidden">
-      <ShortsTopbar onFileExport={handleFileExport} onYouTubeExport={handleYouTubeExport} onSave={handleSave} blurEnabled={blurRegion.enabled} onToggleBlur={() => setBlurRegion(prev => ({ ...prev, enabled: !prev.enabled }))} onAddText={handleAddTextOverlay} />
+      <ShortsTopbar projectName={projectName} onProjectNameChange={setProjectName} onFileExport={handleFileExport} onYouTubeExport={handleYouTubeExport} onSave={handleSave} blurEnabled={blurRegion.enabled} onToggleBlur={() => setBlurRegion(prev => ({ ...prev, enabled: !prev.enabled }))} onAddText={handleAddTextOverlay} />
 
       {/* Desktop Layout (md and above) */}
       <div className="hidden md:flex flex-1 overflow-hidden">
@@ -386,6 +404,10 @@ export function ShortsEditor() {
           onSubtitleClose={() => setSelectedSubtitleId(null)}
           subtitleStyle={subtitleStyle}
           onSubtitleStyleChange={setSubtitleStyle}
+          selectedTextOverlay={textOverlays.find(o => o.id === selectedTextOverlayId) || null}
+          onTextOverlayChange={handleTextOverlayChange}
+          onTextOverlayDelete={handleDeleteTextOverlay}
+          onTextOverlayClose={() => setSelectedTextOverlayId(null)}
         />
       </div>
 
@@ -427,6 +449,10 @@ export function ShortsEditor() {
               onSubtitleClose={() => setSelectedSubtitleId(null)}
               subtitleStyle={subtitleStyle}
               onSubtitleStyleChange={setSubtitleStyle}
+              selectedTextOverlay={textOverlays.find(o => o.id === selectedTextOverlayId) || null}
+              onTextOverlayChange={handleTextOverlayChange}
+              onTextOverlayDelete={handleDeleteTextOverlay}
+              onTextOverlayClose={() => setSelectedTextOverlayId(null)}
             />
           )}
         </div>
