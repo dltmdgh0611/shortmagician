@@ -10,6 +10,7 @@ import { ConvertLoadingModal } from "../components/modals/ConvertLoadingModal";
 import type { VideoInfo } from "../lib/videoParser";
 import { usePipeline } from "../contexts/PipelineContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useEarlybirdModal } from "../App";
 import { api } from "../lib/api";
 import { listProjects, loadProject as loadProjectFromDisk, deleteProject as deleteProjectFromDisk } from "../lib/services/projectService";
 import { readFile } from "@tauri-apps/plugin-fs";
@@ -26,7 +27,9 @@ interface ConvertSource {
 
 export function Home() {
   const navigate = useNavigate();
-  const { fetchCredits } = useAuth();
+  const { state, fetchCredits } = useAuth();
+  const earlybirdModal = useEarlybirdModal();
+  const hasPlan = !!state.profile?.plan;
   const { startPipeline, cancelPipeline, progress, error, logs, result: pipelineResult, isProcessing, clearPipeline, loadPipelineResult } = usePipeline();
 
   const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([]);
@@ -236,7 +239,10 @@ export function Home() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 새 프로젝트 생성 버튼 */}
         <button
-          onClick={() => setShowTemplateModal(true)}
+          onClick={() => {
+            if (!hasPlan) { earlybirdModal?.open(); return; }
+            setShowTemplateModal(true);
+          }}
           className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-200 rounded-2xl p-6 text-center hover:border-blue-400 hover:bg-gradient-to-br hover:from-blue-100 hover:to-indigo-100 transition-all group cursor-pointer"
         >
           <div className="flex flex-col items-center gap-3">
@@ -254,7 +260,10 @@ export function Home() {
 
         {/* 프로젝트 다국어 전환 버튼 */}
         <button
-          onClick={() => setShowConvertModal(true)}
+          onClick={() => {
+            if (!hasPlan) { earlybirdModal?.open(); return; }
+            setShowConvertModal(true);
+          }}
           className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-200 rounded-2xl p-6 text-center hover:border-emerald-400 hover:bg-gradient-to-br hover:from-emerald-100 hover:to-teal-100 transition-all group cursor-pointer"
         >
           <div className="flex flex-col items-center gap-3">
