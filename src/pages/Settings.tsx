@@ -2,20 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { User, Lock, HelpCircle, ChevronRight, Youtube, Plus, Trash2, Gift, Loader2, ExternalLink, Check, FlaskConical } from "lucide-react";
 import { useEarlybirdModal } from "../App";
 import { useAuth } from "../contexts/AuthContext";
-import { api } from "../lib/api";
 import { openUrl } from "../lib/openUrl";
 import { useNavigate } from "react-router-dom";
 import { getVersion } from "@tauri-apps/api/app";
-
-interface YouTubeChannel {
-  id: string;
-  channel_id: string;
-  channel_title: string;
-  thumbnail_url: string;
-  subscriber_count: string;
-  google_email: string;
-  connected_at: string;
-}
+import { listConnections, disconnectChannel, type YouTubeChannel } from "../lib/services/youtubeService";
+import { callYoutubeAuthUrl } from "../lib/cloudFunctions";
 
 
 const INPUT_CLASS =
@@ -60,17 +51,18 @@ export function Settings() {
   };
   // Fetch YouTube connections
   const fetchYtChannels = useCallback(async () => {
+    if (!state.user) return;
     try {
-      const res = await api.get("/api/v1/youtube/connections");
-      setYtChannels(res.data.channels ?? []);
+      const channels = await listConnections(state.user.uid);
+      setYtChannels(channels);
       setYtError(null);
     } catch {
-      // Backend may be down — show empty
+      // Firestore may be unavailable — show empty
       setYtChannels([]);
     } finally {
       setYtLoading(false);
     }
-  }, []);
+  }, [state.user]);
 
   // Load channels on mount
   useEffect(() => {
@@ -131,9 +123,10 @@ export function Settings() {
     }
   }, [pwMsg]);
 
-  const handleDisconnect = async (channelId: string) => {
+  const handleDisconnect = async (docId: string, channelId: string) => {
+    if (!state.user) return;
     try {
-      await api.delete(`/api/v1/youtube/connections/${channelId}`);
+      await disconnectChannel(state.user.uid, docId);
       setYtChannels((prev) => prev.filter((c) => c.channel_id !== channelId));
     } catch {
       setYtError("채널 연결 해제에 실패했습니다");
@@ -142,23 +135,23 @@ export function Settings() {
 
 
   const handleConnect = async () => {
+    if (!state.user) return;
     setYtConnecting(true);
     setYtError(null);
     try {
-      const res = await api.get("/api/v1/youtube/auth-url");
-      const authUrl: string = res.data.auth_url;
+      const { auth_url } = await callYoutubeAuthUrl({} as Record<string, never>);
 
       // Open Google OAuth in system browser
-      openUrl(authUrl);
+      openUrl(auth_url);
 
       // Poll for new connections every 3s for up to 2 minutes
+      const uid = state.user.uid;
       const prevCount = ytChannels.length;
       let elapsed = 0;
       pollRef.current = setInterval(async () => {
         elapsed += 3000;
         try {
-          const pollRes = await api.get("/api/v1/youtube/connections");
-          const newChannels: YouTubeChannel[] = pollRes.data.channels ?? [];
+          const newChannels = await listConnections(uid);
           if (newChannels.length > prevCount) {
             // New channel detected — stop polling
             setYtChannels(newChannels);
@@ -177,7 +170,7 @@ export function Settings() {
         }
       }, 3000);
     } catch {
-      setYtError("YouTube 연동을 시작할 수 없습니다. 백엔드가 실행 중인지 확인해주세요.");
+      setYtError("YouTube 연동을 시작할 수 없습니다.");
       setYtConnecting(false);
     }
   };
@@ -320,7 +313,7 @@ export function Settings() {
                         </div>
                       </div>
                       <button
-                        onClick={() => handleDisconnect(channel.channel_id)}
+                        onClick={() => handleDisconnect(channel.id, channel.channel_id)}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         title="연결 해제"
                       >

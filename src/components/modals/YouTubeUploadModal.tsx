@@ -8,12 +8,15 @@ import {
   Plus,
   Youtube,
 } from "lucide-react";
-import { api } from "../../lib/api";
 import { openUrl } from "../../lib/openUrl";
 import { exportVideo } from "../../lib/pipeline/exportService";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import type { SubtitleSegment, SubtitleStyle } from "../../lib/types/pipeline";
 import type { BlurRegion } from "../../pages/ShortsEditor";
+import { useAuth } from "../../contexts/AuthContext";
+import { listConnections, type YouTubeChannel } from "../../lib/services/youtubeService";
+import { callGenerateMetadata } from "../../lib/cloudFunctions";
+import { uploadToYoutube } from "../../lib/services/youtubeUploadService";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,13 +29,6 @@ type ModalStatus =
   | "uploading"
   | "done"
   | "error";
-
-interface YouTubeChannel {
-  channel_id: string;
-  channel_title: string;
-  thumbnail_url: string;
-  google_email: string;
-}
 
 interface YouTubeUploadModalProps {
   isOpen: boolean;
@@ -59,6 +55,9 @@ export function YouTubeUploadModal({
   blurRegion,
   targetLanguage,
 }: YouTubeUploadModalProps) {
+  const { state: authState } = useAuth();
+  const uid = authState.user?.uid ?? "";
+
   const [status, setStatus] = useState<ModalStatus>("idle");
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<YouTubeChannel | null>(null);
@@ -84,11 +83,9 @@ export function YouTubeUploadModal({
 
     (async () => {
       try {
-        const connectionsRes = await api.get<{ channels: YouTubeChannel[] }>(
-          "/api/v1/youtube/connections"
-        );
-        const fetchedChannels = connectionsRes.data.channels;
-        if (!fetchedChannels || fetchedChannels.length === 0) {
+        if (!uid) throw new Error("로그인이 필요합니다.");
+        const fetchedChannels = await listConnections(uid);
+        if (fetchedChannels.length === 0) {
           setErrorMsg("연결된 YouTube 채널이 없습니다. 설정에서 채널을 연결해주세요.");
           setStatus("error");
         } else {
@@ -183,17 +180,13 @@ export function YouTubeUploadModal({
         const subtitleText = subtitleSegments
           .map((s) => s.translatedText || s.originalText)
           .join(" ");
-        const metadataRes = await api.post<{
-          title: string;
-          description: string;
-          hashtags: string[];
-        }>("/api/v1/youtube/generate-metadata", {
+        const metadataRes = await callGenerateMetadata({
           subtitle_text: subtitleText,
           language: targetLanguage,
         });
-        setTitle(metadataRes.data.title || "");
-        setDescription(metadataRes.data.description || "");
-        setHashtags(metadataRes.data.hashtags || []);
+        setTitle(metadataRes.title || "");
+        setDescription(metadataRes.description || "");
+        setHashtags(metadataRes.hashtags || []);
       } catch {
         setTitle("");
         setDescription("");
@@ -210,7 +203,7 @@ export function YouTubeUploadModal({
   };
 
   const handleUpload = async () => {
-    if (!selectedChannel || !exportedPath) return;
+    if (!selectedChannel || !exportedPath || !uid) return;
 
     setStatus("uploading");
 
@@ -220,42 +213,31 @@ export function YouTubeUploadModal({
           ? `${description}\n\n${hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}`
           : description;
 
-      const res = await api.post<{
-        video_id: string;
-        video_url: string;
-        status: string;
-      }>("/api/v1/youtube/upload", {
-        channel_id: selectedChannel.channel_id,
-        file_path: exportedPath,
+      const res = await uploadToYoutube(
+        uid,
+        selectedChannel.channel_id,
+        exportedPath,
         title,
-        description: fullDescription,
-        language: targetLanguage,
-      });
+        fullDescription,
+        targetLanguage,
+      );
 
-      setVideoId(res.data.video_id);
+      setVideoId(res.video_id);
       setStatus("done");
     } catch (err: unknown) {
       let message = "업로드 중 오류가 발생했습니다.";
       let authRelated = false;
 
-      if (typeof err === "object" && err !== null && "response" in err) {
-        const response = (err as { response?: { status?: number } }).response;
-        const httpStatus = response?.status;
-
-        if (httpStatus === 400) {
-          message = "내보내기한 파일을 찾을 수 없습니다. 다시 내보내기 해주세요.";
-        } else if (httpStatus === 401 || httpStatus === 403) {
+      if (err instanceof Error) {
+        const msg = err.message;
+        if (msg.includes("채널을 찾을 수 없습니다")) {
+          message = "채널 정보를 찾을 수 없습니다. 설정에서 채널을 다시 연결해주세요.";
+          authRelated = true;
+        } else if (msg.includes("업로드 세션 생성 실패") && (msg.includes("401") || msg.includes("403"))) {
           message = "인증이 만료되었습니다. 설정에서 채널을 다시 연결해주세요.";
           authRelated = true;
-        } else if (httpStatus === 429) {
-          message = "YouTube 일일 업로드 할당량이 초과되었습니다. 내일 다시 시도해주세요.";
-        } else if (httpStatus === 500) {
-          message = "YouTube 업로드 중 서버 오류가 발생했습니다.";
-        }
-      } else if (typeof err === "object" && err !== null && "message" in err) {
-        const errObj = err as { message?: string; code?: string };
-        if (errObj.code === "ERR_NETWORK" || errObj.message === "Network Error") {
-          message = "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.";
+        } else {
+          message = msg;
         }
       }
 

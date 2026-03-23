@@ -1,4 +1,4 @@
-import { api } from "../api";
+import { callTranscribe, callTranslate, callSynthesize, callVoices, callRealign, callSplitSegments } from "../cloudFunctions";
 import { extractAudio } from "./audioExtractor";
 import { mergeTtsAudio } from "./videoComposer";
 import { cleanupPipeline } from "./cleanup";
@@ -19,29 +19,53 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 
+// ── base64 utilities (browser-compatible, no Node Buffer) ───────────────────
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // ── Retry helper ─────────────────────────────────────────────────────────────
 
 const API_RETRIES = 2;
 
 /**
- * Retry wrapper for network-level failures (no response from server).
- * Does NOT retry on 4xx/5xx — those are server-side errors with a response.
+ * Retry wrapper for transient failures (network errors, unavailable, etc.).
+ * Does NOT retry on definitive Firebase errors (invalid-argument, permission-denied, etc.).
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
   label: string,
   emitLog?: (level: PipelineLogEntry['level'], msg: string) => void,
 ): Promise<T> {
+  const NON_RETRYABLE = new Set([
+    'invalid-argument', 'permission-denied', 'unauthenticated',
+    'not-found', 'already-exists', 'failed-precondition',
+  ]);
   let lastErr: unknown;
   for (let attempt = 0; attempt <= API_RETRIES; attempt++) {
     try {
       return await fn();
     } catch (err: any) {
       lastErr = err;
-      const isNetwork = !err.response; // no response = connection dropped
-      if (isNetwork && attempt < API_RETRIES) {
+      const code: string = err?.code ?? '';
+      const isRetryable = !NON_RETRYABLE.has(code);
+      if (isRetryable && attempt < API_RETRIES) {
         const delay = 1000 * (attempt + 1);
-        emitLog?.('detail', `  ⚠️ ${label} 네트워크 오류, ${attempt + 1}번째 재시도 (${delay}ms 후)...`);
+        emitLog?.('detail', `  ⚠️ ${label} 오류, ${attempt + 1}번째 재시도 (${delay}ms 후)...`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -194,14 +218,12 @@ export async function runPipeline(
       message: "음성을 인식하는 중...",
     });
     const audioData = await readFile(audioPath);
-    const formData = new FormData();
-    formData.append("file", new Blob([audioData]), "audio.mp3");
-    const transcribeRes = await api.post(
-      "/api/v1/pipeline/transcribe",
-      formData,
-      { headers: { "Content-Type": "multipart/form-data" } },
-    );
-    const { segments: rawSegments, detected_language } = transcribeRes.data;
+    const audioBase64 = uint8ArrayToBase64(audioData);
+    const transcribeRes = await callTranscribe({
+      audioBase64,
+      filename: "audio.mp3",
+    });
+    const { segments: rawSegments, detected_language } = transcribeRes;
     result.sourceLanguage = detected_language;
     logSuccess("Transcription complete");
     logDetail("Language detected", detected_language);
@@ -224,7 +246,7 @@ export async function runPipeline(
     });
     result.status = "translating";
     const translateRes = await withRetry(
-      () => api.post("/api/v1/pipeline/translate", {
+      () => callTranslate({
         segments: rawSegments,
         source_language: detected_language,
         target_language: targetLang,
@@ -232,7 +254,7 @@ export async function runPipeline(
       '번역(translate)',
       emitLog,
     );
-    const translatedSegments = translateRes.data.segments;
+    const translatedSegments = translateRes.segments;
     logSuccess("Translation complete");
     logDetail("Segments translated", translatedSegments.length);
     emitLog('success', '✅ 번역 완료');
@@ -267,10 +289,8 @@ export async function runPipeline(
       });
     }
 
-    const voicesRes = await api.get(
-      `/api/v1/pipeline/voices?language=${targetLang}`,
-    );
-    const defaultVoice = voicesRes.data.voices[0];
+    const voicesRes = await callVoices({ language: targetLang });
+    const defaultVoice = voicesRes.voices[0];
 
     const pipelineSegments: PipelineSegment[] = [];
     const TTS_CONCURRENCY = 2; // Keep low to avoid overwhelming the server
@@ -283,21 +303,22 @@ export async function runPipeline(
         batch.map(async (seg: any, batchIdx: number) => {
           const idx = i + batchIdx;
           let lastErr: any;
+          const NON_RETRYABLE_TTS = new Set([
+            'invalid-argument', 'permission-denied', 'unauthenticated',
+            'not-found', 'already-exists', 'failed-precondition',
+          ]);
           for (let attempt = 0; attempt <= TTS_RETRIES; attempt++) {
             try {
-              const ttsRes = await api.post(
-                '/api/v1/pipeline/synthesize',
-                {
-                  text: seg.translated_text,
-                  voice_id: defaultVoice.voice_id,
-                  language: targetLang,
-                  speed: 1.0,
-                },
-                { responseType: 'arraybuffer', timeout: 30_000 },
-              );
+              const ttsRes = await callSynthesize({
+                text: seg.translated_text,
+                voice_id: defaultVoice.voice_id,
+                language: targetLang,
+                speed: 1.0,
+              });
 
               const ttsPath = await join(ttsDir, `tts_${idx}.mp3`);
-              await writeFile(ttsPath, new Uint8Array(ttsRes.data));
+              const ttsBytes = base64ToUint8Array(ttsRes.audioBase64);
+              await writeFile(ttsPath, ttsBytes);
 
               return {
                 id: seg.id,
@@ -311,9 +332,10 @@ export async function runPipeline(
               } as PipelineSegment;
             } catch (err: any) {
               lastErr = err;
-              const isNetwork = !err.response; // Network Error = no response at all
-              if (isNetwork && attempt < TTS_RETRIES) {
-                emitLog('detail', `  \u26A0\uFE0F TTS #${idx} \uB124\uD2B8\uC6CC\uD06C \uC624\uB958, ${attempt + 1}\uBC88\uC9F8 \uC7AC\uC2DC\uB3C4...`);
+              const code: string = err?.code ?? '';
+              const isRetryable = !NON_RETRYABLE_TTS.has(code);
+              if (isRetryable && attempt < TTS_RETRIES) {
+                emitLog('detail', `  ⚠️ TTS #${idx} 오류, ${attempt + 1}번째 재시도...`);
                 await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
                 continue;
               }
@@ -375,18 +397,18 @@ export async function runPipeline(
             if (!seg.ttsAudioPath) return [];
 
             const ttsAudioData = await readFile(seg.ttsAudioPath);
-            const realignForm = new FormData();
-            realignForm.append("file", new Blob([ttsAudioData]), "tts_audio.mp3");
+            const ttsBase64 = uint8ArrayToBase64(ttsAudioData);
 
             const realignRes = await withRetry(
-              () => api.post("/api/v1/pipeline/realign", realignForm, {
-                headers: { "Content-Type": "multipart/form-data" },
+              () => callRealign({
+                audioBase64: ttsBase64,
+                filename: "tts_audio.mp3",
               }),
               `자막 정렬(realign #${seg.id})`,
               emitLog,
             );
 
-            const words = realignRes.data.words;
+            const words = realignRes.words;
             if (!words || words.length === 0) return [];
 
             return createSubtitlesFromWords(
@@ -420,16 +442,16 @@ export async function runPipeline(
       emitLog('error', `\uD83C\uDF99\uFE0F \uc790\ub9c9 \uc815\ub82c \uc2e4\ud328, GPT \ubd84\ud560\ub85c \ub300\uccb4: ${realignErr.message}`);
       try {
         const splitRes = await withRetry(
-          () => api.post("/api/v1/pipeline/split-segments", {
+          () => callSplitSegments({
             segments: translatedSegments,
             max_duration: 2.0,
             max_lines: 2,
             target_language: targetLang,
           }),
-          '\uc790\ub9c9 \ubd84\ud560(split-segments)',
+          '자막 분할(split-segments)',
           emitLog,
         );
-        subtitleSegmentsResult = splitRes.data.segments.map((s: any) => ({
+        subtitleSegmentsResult = splitRes.segments.map((s: any) => ({
           id: s.id,
           startTime: s.start_time,
           endTime: s.end_time,
@@ -485,25 +507,21 @@ export async function runPipeline(
     await flushLog();
     return result as PipelineResult;
   } catch (error: any) {
-    // Extract backend error detail from axios response (if available)
-    const backendDetail: string | undefined = error.response?.data?.detail;
-    const statusCode: number | undefined = error.response?.status;
+    // Firebase HttpsError: { code, message, details }
     // Tauri plugin errors are often strings, not Error objects
     const rawMessage = typeof error === 'string'
       ? error
       : (error.message || String(error));
-    const errorMessage = backendDetail
-      ? `[${statusCode}] ${backendDetail}`
+    const firebaseCode: string | undefined = error?.code;
+    const errorMessage = firebaseCode
+      ? `[${firebaseCode}] ${rawMessage}`
       : rawMessage || '알 수 없는 오류';
 
     logError('Pipeline failed', error);
     emitLog('error', `❌ 파이프라인 실패: ${errorMessage}`);
-    emitLog('detail', `에러 타입: ${typeof error}, 전체: ${JSON.stringify(error, null, 2)}`);
-    if (backendDetail) {
-      emitLog('detail', `서버 응답: ${backendDetail}`);
-    }
-    if (error.response?.data) {
-      emitLog('detail', `응답 데이터: ${JSON.stringify(error.response.data)}`);
+    emitLog('detail', `에러 타입: ${typeof error}, 코드: ${firebaseCode ?? 'N/A'}`);
+    if (error?.details) {
+      emitLog('detail', `에러 상세: ${JSON.stringify(error.details)}`);
     }
 
     const isCancelled = signal?.aborted || error.message?.includes('취소');

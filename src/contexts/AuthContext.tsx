@@ -13,7 +13,8 @@ import {
   type User,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
-import { api } from "../lib/api";
+import { createOrGetUser, getMyProfile, updateMyProfile } from "../lib/services/userService";
+import { getCredits } from "../lib/services/creditService";
 
 // Maps backend snake_case response to UserProfile camelCase
 const mapBackendProfile = (data: any): UserProfile => ({
@@ -118,15 +119,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           error: null,
         });
 
-        // Fetch profile from backend async — failure is silently ignored
-        api
-          .get("/api/v1/users/me")
-          .then((response) => {
-            const profile = mapBackendProfile(response.data);
+        // Fetch profile from Firestore async — failure is silently ignored
+        getMyProfile(user.uid)
+          .then((data) => {
+            const profile = mapBackendProfile(data);
             setState((prev) => ({ ...prev, profile }));
           })
           .catch(() => {
-            // Backend may be down — profile stays null
+            // Firestore may be unavailable — profile stays null
           });
       } else {
         setState({
@@ -148,15 +148,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Notify backend of login — failure is silently caught (Firebase auth state preserved)
+      // Ensure user profile exists in Firestore — failure is silently caught (Firebase auth state preserved)
       try {
-        await api.post("/api/v1/users", {
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          display_name: userCredential.user.displayName,
-        });
+        await createOrGetUser(
+          userCredential.user.uid,
+          userCredential.user.email!,
+          userCredential.user.displayName || ""
+        );
       } catch (_) {
-        // Backend may be down — ignore
+        // Firestore may be unavailable — ignore
       }
     } catch (error: any) {
       const message = getErrorMessage(error.code);
@@ -178,15 +178,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Update Firebase Auth profile with displayName
       await updateProfile(userCredential.user, { displayName });
-      // Register user in backend — failure is silently caught (Firebase auth state preserved)
+      // Ensure user profile exists in Firestore — failure is silently caught (Firebase auth state preserved)
       try {
-        await api.post("/api/v1/users", {
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          display_name: displayName,
-        });
+        await createOrGetUser(
+          userCredential.user.uid,
+          email,
+          displayName
+        );
       } catch (_) {
-        // Backend may be down — ignore
+        // Firestore may be unavailable — ignore
       }
       setIsNewSignup(true);
     } catch (error: any) {
@@ -198,8 +198,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     try {
-      const res = await api.get("/api/v1/users/me");
-      const profile = mapBackendProfile(res.data);
+      if (!auth?.currentUser) return;
+      const data = await getMyProfile(auth.currentUser.uid);
+      const profile = mapBackendProfile(data);
       setState((prev) => ({ ...prev, profile }));
     } catch {
       // ignore
@@ -210,12 +211,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchCredits = async () => {
     try {
-      const res = await api.get("/api/v1/credits");
+      if (!auth?.currentUser) return null;
+      const data = await getCredits(auth.currentUser.uid);
       return {
-        dailyLimit: res.data.daily_limit,
-        usedToday: res.data.used_today,
-        remaining: res.data.remaining,
-        resetDate: res.data.reset_date,
+        dailyLimit: data.daily_limit,
+        usedToday: data.used_today,
+        remaining: data.remaining,
+        resetDate: data.reset_date,
       };
     } catch {
       return null;
@@ -234,11 +236,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await updateProfile(auth.currentUser, { displayName: data.displayName });
     }
 
-    // Update backend profile
-    const payload: Record<string, unknown> = {};
-    if (data.displayName !== undefined) payload.display_name = data.displayName;
-
-    await api.patch("/api/v1/users/me", payload);
+    // Update Firestore profile
+    await updateMyProfile(auth.currentUser!.uid, {
+      display_name: data.displayName,
+    });
 
     // Refresh local profile
     await refreshProfile();
