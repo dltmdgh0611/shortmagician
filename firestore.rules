@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - each user can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // YouTube channels subcollection - user owns their channels
+      match /youtube_channels/{channelId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Earlybird codes - anyone authenticated can read; 
+    // writing only allowed when marking as used (used: true)
+    // and the user hasn't used it before
+    match /earlybird_codes/{code} {
+      allow read: if request.auth != null;
+      // Allow update only: setting used=true (redemption)
+      allow update: if request.auth != null
+        && request.resource.data.used == true
+        && resource.data.used == false
+        && request.resource.data.used_by == request.auth.uid;
+      // No create or delete from client
+    }
+    
+    // Usage logs - read own logs only; writes from Cloud Functions only
+    match /usage_logs/{logId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      // No client writes - Cloud Functions handles writing
+    }
+    
+    // OAuth states - Cloud Functions only (no client access)
+    match /oauth_states/{token} {
+      allow read, write: if false; // Admin/Cloud Functions access via Admin SDK only
+    }
+  }
+}
