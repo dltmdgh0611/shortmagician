@@ -1,17 +1,32 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 // Firebase Cloud Functions entry point
 // Pipeline functions
-// export * from './pipeline/transcribe';
-// export * from './pipeline/translate';
-// export * from './pipeline/synthesize';
-// export * from './pipeline/voices';
-// export * from './pipeline/realign';
-// export * from './pipeline/splitSegments';
+__exportStar(require("./pipeline/transcribe"), exports);
+__exportStar(require("./pipeline/translate"), exports);
+__exportStar(require("./pipeline/synthesize"), exports);
+__exportStar(require("./pipeline/voices"), exports);
+__exportStar(require("./pipeline/realign"), exports);
+__exportStar(require("./pipeline/splitSegments"), exports);
 // YouTube functions
-// export * from './youtube/authUrl';
-// export * from './youtube/callback';
-// export * from './youtube/generateMetadata';
-// export * from './youtube/refreshToken';
+__exportStar(require("./youtube/authUrl"), exports);
+__exportStar(require("./youtube/callback"), exports);
+__exportStar(require("./youtube/generateMetadata"), exports);
+__exportStar(require("./youtube/refreshToken"), exports);
 // TODO: Implement pipeline functions
 // TODO: Implement YouTube functions
 //# sourceMappingURL=index.js.map
