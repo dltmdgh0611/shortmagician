@@ -52,7 +52,7 @@ const WHISPER_LANG_MAP = {
     chinese: "zh",
     spanish: "es",
 };
-exports.transcribe = (0, https_1.onCall)({ memory: "1GiB", timeoutSeconds: 300, secrets: [openaiApiKey] }, async (request) => {
+exports.transcribe = (0, https_1.onCall)({ cors: true, invoker: "public", memory: "1GiB", timeoutSeconds: 300, secrets: [openaiApiKey] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }

@@ -55,7 +55,7 @@ const CHIRP3_HD_VOICES: Record<string, VoiceInfo[]> = {
 };
 
 export const voices = onCall(
-  {memory: "256MiB", timeoutSeconds: 30},
+  {cors: true, invoker: "public", memory: "256MiB", timeoutSeconds: 30},
   async (request): Promise<VoiceListResponse> => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

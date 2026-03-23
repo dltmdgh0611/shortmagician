@@ -18,7 +18,7 @@ const SCOPES = [
 ];
 
 export const youtubeAuthUrl = onCall(
-  {secrets: [googleClientId, googleClientSecret, googleRedirectUri]},
+  {cors: true, invoker: "public", secrets: [googleClientId, googleClientSecret, googleRedirectUri]},
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

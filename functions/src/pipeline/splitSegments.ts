@@ -365,7 +365,7 @@ async function splitTextWithGpt(
 // ── Cloud Function ─────────────────────────────────────────────────────────
 
 export const splitSegments = onCall(
-  {memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey]},
+  {cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey]},
   async (request): Promise<SplitSegmentsResponse> => {
     const body = request.data as SplitSegmentsRequest;
     const uid = request.auth?.uid;
@@ -470,5 +470,5 @@ export const splitSegments = onCall(
     );
 
     return {segments: resultSegments};
-  },
+  }
 );

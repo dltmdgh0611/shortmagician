@@ -45,7 +45,7 @@ function buildSsml(text: string, speed: number = 1.0): string {
 }
 
 export const synthesize = onCall(
-  {memory: "512MiB", timeoutSeconds: 60},
+  {cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 60},
   async (request): Promise<SynthesizeResponse> => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

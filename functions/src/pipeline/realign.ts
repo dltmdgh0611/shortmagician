@@ -21,7 +21,7 @@ interface WhisperWord {
 }
 
 export const realign = onCall(
-  {memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey]},
+  {cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey]},
   async (request): Promise<RealignResponse> => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

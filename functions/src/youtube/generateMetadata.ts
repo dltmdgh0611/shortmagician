@@ -20,7 +20,7 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 export const youtubeGenerateMetadata = onCall(
-  {secrets: [openaiApiKey], timeoutSeconds: 60},
+  {cors: true, invoker: "public", secrets: [openaiApiKey], timeoutSeconds: 60},
   async (request): Promise<YouTubeMetadataResponse> => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

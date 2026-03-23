@@ -34,7 +34,7 @@ interface WhisperSegment {
 }
 
 export const transcribe = onCall(
-  {memory: "1GiB", timeoutSeconds: 300, secrets: [openaiApiKey]},
+  {cors: true, invoker: "public", memory: "1GiB", timeoutSeconds: 300, secrets: [openaiApiKey]},
   async (request): Promise<TranscribeResponse> => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

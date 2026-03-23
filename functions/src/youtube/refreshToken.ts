@@ -11,7 +11,7 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const BUFFER_SECONDS = 5 * 60; // 5 minutes
 
 export const youtubeRefreshToken = onCall(
-  {secrets: [googleClientId, googleClientSecret]},
+  {cors: true, invoker: "public", secrets: [googleClientId, googleClientSecret]},
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "인증이 필요합니다");

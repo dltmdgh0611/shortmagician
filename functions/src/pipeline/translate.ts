@@ -260,7 +260,7 @@ async function translateAllIndividually(
 // ── Cloud Function ─────────────────────────────────────────────────────────
 
 export const translate = onCall(
-  {memory: "512MiB", timeoutSeconds: 300, secrets: [openaiApiKey]},
+  {cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 300, secrets: [openaiApiKey]},
   async (request): Promise<TranslateResponse> => {
     const body = request.data as TranslateRequest;
     const uid = request.auth?.uid;
@@ -366,5 +366,5 @@ export const translate = onCall(
       source_language: srcLang,
       target_language: tgtLang,
     };
-  },
+  }
 );

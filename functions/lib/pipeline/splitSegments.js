@@ -344,7 +344,7 @@ async function splitTextWithGpt(text, targetChunks, language) {
     }
 }
 // ── Cloud Function ─────────────────────────────────────────────────────────
-exports.splitSegments = (0, https_1.onCall)({ memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey] }, async (request) => {
+exports.splitSegments = (0, https_1.onCall)({ cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey] }, async (request) => {
     const body = request.data;
     const uid = request.auth?.uid;
     if (!uid) {

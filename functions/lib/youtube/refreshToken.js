@@ -43,7 +43,7 @@ const googleClientId = (0, params_1.defineSecret)("GOOGLE_CLIENT_ID");
 const googleClientSecret = (0, params_1.defineSecret)("GOOGLE_CLIENT_SECRET");
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const BUFFER_SECONDS = 5 * 60; // 5 minutes
-exports.youtubeRefreshToken = (0, https_1.onCall)({ secrets: [googleClientId, googleClientSecret] }, async (request) => {
+exports.youtubeRefreshToken = (0, https_1.onCall)({ cors: true, invoker: "public", secrets: [googleClientId, googleClientSecret] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }

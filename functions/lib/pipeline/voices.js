@@ -48,7 +48,7 @@ const CHIRP3_HD_VOICES = {
         { name: "Autonoe", gender: "FEMALE" },
     ],
 };
-exports.voices = (0, https_1.onCall)({ memory: "256MiB", timeoutSeconds: 30 }, async (request) => {
+exports.voices = (0, https_1.onCall)({ cors: true, invoker: "public", memory: "256MiB", timeoutSeconds: 30 }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }

@@ -42,7 +42,7 @@ if (admin.apps.length === 0)
     admin.initializeApp();
 const openaiApiKey = (0, params_1.defineSecret)("OPENAI_API_KEY");
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-exports.realign = (0, https_1.onCall)({ memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey] }, async (request) => {
+exports.realign = (0, https_1.onCall)({ cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 120, secrets: [openaiApiKey] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }

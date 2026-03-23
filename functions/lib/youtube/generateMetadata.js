@@ -51,7 +51,7 @@ const LANGUAGE_MAP = {
     zh: "Chinese",
     es: "Spanish",
 };
-exports.youtubeGenerateMetadata = (0, https_1.onCall)({ secrets: [openaiApiKey], timeoutSeconds: 60 }, async (request) => {
+exports.youtubeGenerateMetadata = (0, https_1.onCall)({ cors: true, invoker: "public", secrets: [openaiApiKey], timeoutSeconds: 60 }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }

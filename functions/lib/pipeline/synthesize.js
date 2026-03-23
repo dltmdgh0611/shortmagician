@@ -68,7 +68,7 @@ function buildSsml(text, speed = 1.0) {
     const ratePct = `${Math.round(clamped * 100)}%`;
     return `<speak><prosody rate="${ratePct}">${escaped}</prosody></speak>`;
 }
-exports.synthesize = (0, https_1.onCall)({ memory: "512MiB", timeoutSeconds: 60 }, async (request) => {
+exports.synthesize = (0, https_1.onCall)({ cors: true, invoker: "public", memory: "512MiB", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }

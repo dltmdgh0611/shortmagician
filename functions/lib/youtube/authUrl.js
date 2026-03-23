@@ -49,7 +49,7 @@ const SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
 ];
-exports.youtubeAuthUrl = (0, https_1.onCall)({ secrets: [googleClientId, googleClientSecret, googleRedirectUri] }, async (request) => {
+exports.youtubeAuthUrl = (0, https_1.onCall)({ cors: true, invoker: "public", secrets: [googleClientId, googleClientSecret, googleRedirectUri] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "인증이 필요합니다");
     }
