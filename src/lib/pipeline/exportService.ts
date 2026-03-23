@@ -117,7 +117,7 @@ export function generateAssContent(
   const styleData = [
     "Style: Default",
     style.fontFamily,
-    Math.round(style.fontSize),
+    Math.round(style.fontSize * 1.2),
     primaryColor,
     primaryColor,
     outlineColor,
@@ -151,7 +151,7 @@ export function generateAssContent(
       overlayStyles.push([
         `Style: TextOverlay_${idx}`,
         style.fontFamily,
-        Math.round(overlay.fontSize),
+        Math.round(overlay.fontSize * 1.2),
         overlayColor, overlayColor,
         overlayOutlineColor, overlayShadowColor,
         overlay.bold ? -1 : 0,
