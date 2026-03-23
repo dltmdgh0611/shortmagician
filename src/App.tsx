@@ -12,7 +12,7 @@ import { Settings } from "./pages/Settings";
 import { ShortsEditor } from "./pages/ShortsEditor";
 import { Lab } from "./pages/Lab";
 import { Loader2, Download, X } from "lucide-react";
-import { api } from "./lib/api";
+import { redeemCode } from "./lib/services/earlybirdService";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
@@ -106,15 +106,15 @@ function AppContent() {
     setEarlybirdError(null);
     setEarlybirdLoading(true);
     try {
-      const res = await api.post("/api/v1/earlybird/redeem", { code });
-      if (res.data.success) {
+      const res = await redeemCode(state.user!.uid, code);
+      if (res.success) {
         await refreshProfile();
         setShowEarlybird(false);
       } else {
-        setEarlybirdError(res.data.message);
+        setEarlybirdError(res.message);
       }
-    } catch (err: any) {
-      setEarlybirdError(err.response?.data?.detail || "코드 등록에 실패했습니다");
+    } catch (err: unknown) {
+      setEarlybirdError(err instanceof Error ? err.message : "코드 등록에 실패했습니다");
     } finally {
       setEarlybirdLoading(false);
     }

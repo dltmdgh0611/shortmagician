@@ -38,8 +38,7 @@
       "binaries/ffprobe"
     ],
     "resources": [
-      "resources/fonts/*",
-      "resources/backend.exe"
+      "resources/fonts/*"
     ],
     "createUpdaterArtifacts": true,
     "windows": {

@@ -9,7 +9,7 @@ import { YouTubeUploadModal } from "../components/modals/YouTubeUploadModal";
 
 import { Play, FileText, ImageIcon, CheckCircle, X } from "lucide-react";
 import { usePipeline } from "../contexts/PipelineContext";
-import { api } from "../lib/api";
+import { callSynthesize, callTranslate } from "../lib/cloudFunctions";
 import { segmentToScene } from "../lib/pipeline/sceneAdapter";
 import type { PipelineSegment, SubtitleSegment, SubtitleStyle } from "../lib/types/pipeline";
 import { DEFAULT_SUBTITLE_STYLE } from "../lib/types/pipeline";
@@ -106,17 +106,19 @@ export function ShortsEditor() {
     try {
       const seg = pipelineSegments?.find(s => s.id === segmentId);
       if (!seg) return;
-      const response = await api.post('/api/v1/pipeline/synthesize', {
+      const response = await callSynthesize({
         text: seg.translatedText,
         voice_id: voiceId,
         language: pipelineResult?.targetLanguage || 'en',
-      }, { responseType: 'blob' });
-      // Save audio via Tauri fs
+      });
+      // Decode base64 and save audio via Tauri fs
       const { writeFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
       const audioFileName = `tts_${segmentId}_${Date.now()}.mp3`;
       const audioPath = `pipeline/${audioFileName}`;
-      const arrayBuffer = await response.data.arrayBuffer();
-      await writeFile(audioPath, new Uint8Array(arrayBuffer), { baseDir: BaseDirectory.AppLocalData });
+      const binaryStr = atob(response.audioBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      await writeFile(audioPath, bytes, { baseDir: BaseDirectory.AppLocalData });
       const voiceName = voiceId.split('-').pop() || voiceId;
       updateSegment(segmentId, { voiceId, voiceName, ttsAudioPath: audioPath });
     } catch (err) {
@@ -128,12 +130,12 @@ export function ShortsEditor() {
     try {
       const seg = pipelineSegments?.find(s => s.id === segmentId);
       if (!seg) return;
-      const response = await api.post('/api/v1/pipeline/translate', {
+      const response = await callTranslate({
         segments: [{ id: seg.id, start_time: seg.startTime, end_time: seg.endTime, text: newText }],
         source_language: pipelineResult?.sourceLanguage || 'ko',
         target_language: pipelineResult?.targetLanguage || 'en',
       });
-      const translated = response.data.segments?.[0];
+      const translated = response.segments?.[0];
       if (translated) {
         updateSegment(segmentId, { originalText: newText, translatedText: translated.translated_text });
       }

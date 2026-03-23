@@ -15,7 +15,9 @@ import {
   RotateCcw,
   ArrowRight,
 } from "lucide-react";
-import { api } from "../lib/api";
+import { callTranscribe, callTranslate, callSynthesize, callVoices, callSplitSegments } from "../lib/cloudFunctions";
+import { resetCredits } from "../lib/services/creditService";
+import { useAuth } from "../contexts/AuthContext";
 import { extractAudio } from "../lib/pipeline/audioExtractor";
 import { generateSubtitles } from "../lib/pipeline/subtitleGenerator";
 import { composeVideo } from "../lib/pipeline/videoComposer";
@@ -84,6 +86,7 @@ function extractError(err: unknown): string {
 
 export function Lab() {
   const navigate = useNavigate();
+  const { state } = useAuth();
 
   // ── Video path ──
   const [videoPath, setVideoPath] = useState("test.mp4");
@@ -153,14 +156,11 @@ export function Lab() {
     const start = performance.now();
     try {
       const audioData = await readFile(audioPath);
-      const formData = new FormData();
-      formData.append("file", new Blob([audioData]), "audio.mp3");
-      const res = await api.post(
-        "/api/v1/pipeline/transcribe",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } },
-      );
-      setTranscribeResult(res.data);
+      let binary = '';
+      for (let i = 0; i < audioData.length; i++) binary += String.fromCharCode(audioData[i]);
+      const audioBase64 = btoa(binary);
+      const res = await callTranscribe({ audioBase64, filename: "audio.mp3" });
+      setTranscribeResult(res);
       setStep2({
         status: "done",
         error: null,
@@ -182,12 +182,12 @@ export function Lab() {
     setStep3({ status: "running", error: null, elapsed: null });
     const start = performance.now();
     try {
-      const res = await api.post("/api/v1/pipeline/translate", {
+      const res = await callTranslate({
         segments: transcribeResult.segments,
         source_language: transcribeResult.detected_language,
         target_language: targetLang,
       });
-      setTranslateResult(res.data.segments);
+      setTranslateResult(res.segments);
       setStep3({
         status: "done",
         error: null,
@@ -209,13 +209,13 @@ export function Lab() {
     setStep4({ status: "running", error: null, elapsed: null });
     const start = performance.now();
     try {
-      const res = await api.post("/api/v1/pipeline/split-segments", {
+      const res = await callSplitSegments({
         segments: translateResult,
         max_duration: splitMaxDuration,
         max_lines: splitMaxLines,
         target_language: targetLang,
       });
-      setSplitResult(res.data.segments);
+      setSplitResult(res.segments);
       setStep4({
         status: "done",
         error: null,
@@ -237,10 +237,8 @@ export function Lab() {
     setStep5({ status: "running", error: null, elapsed: null });
     const start = performance.now();
     try {
-      const voicesRes = await api.get(
-        `/api/v1/pipeline/voices?language=${targetLang}`,
-      );
-      const defaultVoice = voicesRes.data.voices[0];
+      const voicesRes = await callVoices({ language: targetLang });
+      const defaultVoice = voicesRes.voices[0];
 
       const dataDir = await appLocalDataDir();
       const ttsDir = await join(dataDir, "pipeline", "tts");
@@ -257,18 +255,17 @@ export function Lab() {
       const paths: string[] = [];
       for (let i = 0; i < translateResult.length; i++) {
         const seg = translateResult[i];
-        const ttsRes = await api.post(
-          "/api/v1/pipeline/synthesize",
-          {
-            text: seg.translated_text,
-            voice_id: defaultVoice.voice_id,
-            language: targetLang,
-            speed: 1.0,
-          },
-          { responseType: "arraybuffer", timeout: 30_000 },
-        );
+        const ttsRes = await callSynthesize({
+          text: seg.translated_text,
+          voice_id: defaultVoice.voice_id,
+          language: targetLang,
+          speed: 1.0,
+        });
         const ttsPath = await join(ttsDir, `tts_${i}.mp3`);
-        await writeFile(ttsPath, new Uint8Array(ttsRes.data));
+        const binaryStr = atob(ttsRes.audioBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let j = 0; j < binaryStr.length; j++) bytes[j] = binaryStr.charCodeAt(j);
+        await writeFile(ttsPath, bytes);
         paths.push(ttsPath);
       }
 
@@ -350,8 +347,8 @@ export function Lab() {
     setCreditResetting(true);
     setCreditMsg(null);
     try {
-      const res = await api.post("/api/v1/credits/reset");
-      setCreditMsg({ type: "success", text: `크레닷 초기화 완료! (남은 크레닷: ${res.data.remaining}/${res.data.daily_limit})` });
+      const res = await resetCredits(state.user!.uid);
+      setCreditMsg({ type: "success", text: `크레닷 초기화 완료! (남은 크레닷: ${res.remaining}/${res.daily_limit})` });
     } catch (err) {
       setCreditMsg({ type: "error", text: extractError(err) });
     } finally {

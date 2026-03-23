@@ -39,7 +39,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
     }));
 
   import { runPipeline } from "../lib/pipeline/pipelineService";
-  import { api } from "../lib/api";
+  import * as cloudFunctions from "../lib/cloudFunctions";
     import { extractAudio } from "../lib/pipeline/audioExtractor";
   import { generateSubtitles } from "../lib/pipeline/subtitleGenerator";
 import { composeVideo } from "../lib/pipeline/videoComposer";

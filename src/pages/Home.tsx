@@ -11,7 +11,7 @@ import type { VideoInfo } from "../lib/videoParser";
 import { usePipeline } from "../contexts/PipelineContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useEarlybirdModal } from "../App";
-import { api } from "../lib/api";
+import { deductCredit } from "../lib/services/creditService";
 import { listProjects, loadProject as loadProjectFromDisk, deleteProject as deleteProjectFromDisk } from "../lib/services/projectService";
 import { readFile } from "@tauri-apps/plugin-fs";
 import type { ProjectSummary } from "../lib/services/projectService";
@@ -169,15 +169,15 @@ export function Home() {
   const handleConvertStart = async (sourceLanguage: string, targetLanguages: string[]) => {
     // Credit check — deduct one credit before starting pipeline
     try {
-      const res = await api.post('/api/v1/credits/deduct');
+      const res = await deductCredit(state.user!.uid);
       setCredits({
-        dailyLimit: res.data.daily_limit,
-        usedToday: res.data.used_today,
-        remaining: res.data.remaining,
-        resetDate: res.data.reset_date,
+        dailyLimit: res.daily_limit,
+        usedToday: res.used_today,
+        remaining: res.remaining,
+        resetDate: res.reset_date,
       });
-    } catch (err: any) {
-      if (err.response?.status === 403) {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("크레딧을 모두 사용")) {
         setCreditError("오늘의 크레딧을 모두 사용했습니다 (5/5). 내일 다시 시도해주세요.");
         setShowConvertLanguageModal(false);
         return;
