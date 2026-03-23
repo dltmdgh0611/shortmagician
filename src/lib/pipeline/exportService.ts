@@ -2,7 +2,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { appLocalDataDir, join, downloadDir, resolveResource } from "@tauri-apps/api/path";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import type { SubtitleSegment, SubtitleStyle } from "../types/pipeline";
-import type { BlurRegion } from "../../pages/ShortsEditor";
+import type { BlurRegion, TextOverlay } from "../../pages/ShortsEditor";
 import { escapeForFilter } from "./videoComposer";
 
 // ── ASS Color Conversion ──────────────────────────────────────────────────────
@@ -25,17 +25,32 @@ function hexToAssColor(hex: string): string {
  */
 function cssColorToAssColor(color: string): string {
   if (color === "transparent") return "&HFF000000";
+
+  // rgba(r, g, b, a) or rgb(r, g, b)
+  const rgbaMatch = color.match(
+    /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/,
+  );
+  if (rgbaMatch) {
+    const r = parseInt(rgbaMatch[1]).toString(16).padStart(2, "0");
+    const g = parseInt(rgbaMatch[2]).toString(16).padStart(2, "0");
+    const b = parseInt(rgbaMatch[3]).toString(16).padStart(2, "0");
+    const a = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1;
+    const assAlpha = Math.round(255 * (1 - a))
+      .toString(16)
+      .padStart(2, "0");
+    return `&H${assAlpha}${b}${g}${r}`.toUpperCase();
+  }
+
   if (color.startsWith("#")) {
     let hex = color;
     if (hex.length === 4) {
-      // Expand #RGB → #RRGGBB
       hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
     }
     if (hex.length === 7) {
       return hexToAssColor(hex);
     }
   }
-  return "&HFF000000"; // Fallback: fully transparent
+  return "&HFF000000";
 }
 
 // ── ASS Timestamp Formatting ──────────────────────────────────────────────────
@@ -67,13 +82,14 @@ function formatAssTimestamp(seconds: number): string {
 export function generateAssContent(
   segments: SubtitleSegment[],
   style: SubtitleStyle,
+  textOverlays?: TextOverlay[],
 ): string {
   const PLAY_RES_X = 1080;
   const PLAY_RES_Y = 1920;
 
   const primaryColor = hexToAssColor(style.fontColor);
   const outlineColor = hexToAssColor(style.outlineColor);
-  const backColor = cssColorToAssColor(style.backgroundColor);
+  const shadowAssColor = cssColorToAssColor(style.shadowColor);
 
   const bold = style.bold ? -1 : 0;
   const italic = style.italic ? -1 : 0;
@@ -105,7 +121,7 @@ export function generateAssContent(
     primaryColor,
     primaryColor,
     outlineColor,
-    backColor,
+    shadowAssColor,
     bold,
     italic,
     0,      // Underline
@@ -124,7 +140,28 @@ export function generateAssContent(
     1,      // Encoding
   ].join(",");
 
-  const v4Styles = ["[V4+ Styles]", styleFormat, styleData, ""].join("\n");
+  // ── Text Overlay Styles ──────────────────────────────────────────────────
+  const overlayStyles: string[] = [];
+  if (textOverlays && textOverlays.length > 0) {
+    const overlayOutlineColor = cssColorToAssColor("rgba(0,0,0,0.3)");
+    const overlayShadowColor = cssColorToAssColor("rgba(0,0,0,0.5)");
+
+    textOverlays.forEach((overlay, idx) => {
+      const overlayColor = hexToAssColor(overlay.fontColor);
+      overlayStyles.push([
+        `Style: TextOverlay_${idx}`,
+        style.fontFamily,
+        Math.round(overlay.fontSize),
+        overlayColor, overlayColor,
+        overlayOutlineColor, overlayShadowColor,
+        overlay.bold ? -1 : 0,
+        0, 0, 0, 100, 100, 0, 0,
+        1, "0.5", 1, 5, 0, 0, 0, 1,
+      ].join(","));
+    });
+  }
+
+  const v4Styles = ["[V4+ Styles]", styleFormat, styleData, ...overlayStyles, ""].join("\n");
 
   // ── [Events] ─────────────────────────────────────────────────────────────
   const eventFormat =
@@ -146,7 +183,20 @@ export function generateAssContent(
     return `Dialogue: 0,${start},${end},Default,,0,0,0,,{\\an5\\pos(${centerX},${centerY})}${text}`;
   });
 
-  const events = ["[Events]", eventFormat, ...dialogues].join("\n");
+  // ── Text Overlay Dialogues ────────────────────────────────────────────────
+  const overlayDialogues: string[] = [];
+  if (textOverlays && textOverlays.length > 0) {
+    textOverlays.forEach((overlay, idx) => {
+      const overlayCX = Math.round((overlay.x + overlay.width / 2) * (PLAY_RES_X / 100));
+      const overlayCY = Math.round((overlay.y + overlay.height / 2) * (PLAY_RES_Y / 100));
+      const overlayText = overlay.text.replace(/\n/g, "\\N");
+      overlayDialogues.push(
+        `Dialogue: 1,0:00:00.00,9:59:59.99,TextOverlay_${idx},,0,0,0,,{\\an5\\pos(${overlayCX},${overlayCY})}${overlayText}`
+      );
+    });
+  }
+
+  const events = ["[Events]", eventFormat, ...dialogues, ...overlayDialogues].join("\n");
 
   return [scriptInfo, v4Styles, events].join("\n");
 }
@@ -159,6 +209,7 @@ export interface ExportParams {
   subtitleSegments: SubtitleSegment[];
   subtitleStyle: SubtitleStyle;
   blurRegion?: BlurRegion;
+  textOverlays?: TextOverlay[];
   outputDir?: string;
   onProgress?: (percent: number, message: string) => void;
 }
@@ -257,6 +308,7 @@ export async function exportVideo(params: ExportParams): Promise<string> {
   const assContent = generateAssContent(
     params.subtitleSegments,
     params.subtitleStyle,
+    params.textOverlays,
   );
   await writeFile(assPath, new TextEncoder().encode(assContent));
 
@@ -293,7 +345,7 @@ export async function exportVideo(params: ExportParams): Promise<string> {
     // on low-res videos or small crop regions.
     const filterComplex = [
       `[0:v]split[main][toblur]`,
-      `[toblur]crop=iw*${wRatio}:ih*${hRatio}:iw*${xRatio}:ih*${yRatio},gblur=sigma=20[blurred]`,
+      `[toblur]crop=iw*${wRatio}:ih*${hRatio}:iw*${xRatio}:ih*${yRatio},gblur=sigma=30[blurred]`,
       `[main][blurred]overlay=W*${xRatio}:H*${yRatio},ass=${escapedAss}:fontsdir=${escapedFonts}[vout]`,
     ].join(";");
 

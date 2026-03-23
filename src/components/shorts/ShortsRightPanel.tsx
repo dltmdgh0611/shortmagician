@@ -1,4 +1,4 @@
-import { X, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { SubtitleStyle } from "../../lib/types/pipeline";
 import type { TextOverlay } from "../../pages/ShortsEditor";
 
@@ -15,7 +15,7 @@ interface ShortsRightPanelProps {
   onTextOverlayClose?: () => void;
 }
 
-export function ShortsRightPanel({ selectedSubtitleId, onSubtitleClose, subtitleStyle, onSubtitleStyleChange, selectedTextOverlay, onTextOverlayChange, onTextOverlayDelete, onTextOverlayClose }: ShortsRightPanelProps) {
+export function ShortsRightPanel({ selectedSubtitleId, subtitleStyle, onSubtitleStyleChange, selectedTextOverlay, onTextOverlayChange, onTextOverlayDelete }: ShortsRightPanelProps) {
 
   // Text overlay editing panel
   if (selectedTextOverlay && onTextOverlayChange) {
@@ -25,20 +25,15 @@ export function ShortsRightPanel({ selectedSubtitleId, onSubtitleClose, subtitle
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             텍스트 편집
           </span>
-          <div className="flex items-center gap-1">
-            {onTextOverlayDelete && (
-              <button
-                onClick={() => onTextOverlayDelete(selectedTextOverlay.id)}
-                className="p-1 hover:bg-red-50 rounded-lg transition-colors group"
-                title="삭제"
-              >
-                <Trash2 size={16} className="text-gray-400 group-hover:text-red-500" />
-              </button>
-            )}
-            <button onClick={onTextOverlayClose} className="p-1 hover:bg-gray-200 rounded-lg transition-colors">
-              <X size={16} className="text-gray-500" />
+          {onTextOverlayDelete && (
+            <button
+              onClick={() => onTextOverlayDelete(selectedTextOverlay.id)}
+              className="p-1 hover:bg-red-50 rounded-lg transition-colors group"
+              title="삭제"
+            >
+              <Trash2 size={16} className="text-gray-400 group-hover:text-red-500" />
             </button>
-          </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
           {/* Text content */}
@@ -117,9 +112,7 @@ export function ShortsRightPanel({ selectedSubtitleId, onSubtitleClose, subtitle
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             자막 스타일
           </span>
-          <button onClick={onSubtitleClose} className="p-1 hover:bg-gray-200 rounded-lg transition-colors">
-            <X size={16} className="text-gray-500" />
-          </button>
+          <span />
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
           {/* Font Family */}
@@ -217,28 +210,7 @@ export function ShortsRightPanel({ selectedSubtitleId, onSubtitleClose, subtitle
             />
           </div>
 
-          {/* Background Color */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">배경</label>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onSubtitleStyleChange({ ...subtitleStyle, backgroundColor: 'transparent' })}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                  subtitleStyle.backgroundColor === 'transparent'
-                    ? 'bg-blue-50 border-blue-300 text-blue-700'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                없음
-              </button>
-              <input
-                type="color"
-                value={subtitleStyle.backgroundColor === 'transparent' ? '#000000' : subtitleStyle.backgroundColor}
-                onChange={(e) => onSubtitleStyleChange({ ...subtitleStyle, backgroundColor: e.target.value })}
-                className="w-8 h-8 rounded border border-gray-200 cursor-pointer"
-              />
-            </div>
-          </div>
+
         </div>
       </aside>
     );

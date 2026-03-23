@@ -12,7 +12,7 @@ import { openUrl } from "../../lib/openUrl";
 import { exportVideo } from "../../lib/pipeline/exportService";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import type { SubtitleSegment, SubtitleStyle } from "../../lib/types/pipeline";
-import type { BlurRegion } from "../../pages/ShortsEditor";
+import type { BlurRegion, TextOverlay } from "../../pages/ShortsEditor";
 import { useAuth } from "../../contexts/AuthContext";
 import { listConnections, type YouTubeChannel } from "../../lib/services/youtubeService";
 import { callGenerateMetadata } from "../../lib/cloudFunctions";
@@ -39,6 +39,7 @@ interface YouTubeUploadModalProps {
   subtitleSegments: SubtitleSegment[];
   subtitleStyle?: SubtitleStyle;
   blurRegion?: BlurRegion;
+  textOverlays?: TextOverlay[];
   // Language from editor
   targetLanguage: string;
 }
@@ -53,6 +54,7 @@ export function YouTubeUploadModal({
   subtitleSegments,
   subtitleStyle,
   blurRegion,
+  textOverlays,
   targetLanguage,
 }: YouTubeUploadModalProps) {
   const { state: authState } = useAuth();
@@ -165,6 +167,7 @@ export function YouTubeUploadModal({
         subtitleSegments,
         subtitleStyle,
         blurRegion: blurRegion?.enabled ? blurRegion : undefined,
+        textOverlays: textOverlays?.length ? textOverlays : undefined,
         outputDir: tempDir,
         onProgress: (pct, msg) => {
           setExportProgress(pct);

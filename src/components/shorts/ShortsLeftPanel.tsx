@@ -296,12 +296,12 @@ export function ShortsLeftPanel({
 
       {/* Main Preview Area */}
       <div className="flex-1 flex flex-col bg-gray-100 relative group p-4 gap-4 overflow-hidden">
-        {/* Vertical Video Container - 19.5:9 비율 */}
+        {/* Vertical Video Container - 9:16 비율 (matches export 1080×1920) */}
         <div className="flex-1 flex items-center justify-center overflow-hidden min-h-0">
           <div
             ref={containerRef}
             className="relative w-full max-h-full"
-            style={{ aspectRatio: '9 / 19.5' }}
+            style={{ aspectRatio: '9 / 16' }}
           >
             {videoUrl ? (
               <>
@@ -352,8 +352,8 @@ export function ShortsLeftPanel({
                 borderColor="rgba(147, 51, 234, 0.5)"
                 label="자막 블러"
                 overlayStyle={{
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
+                  backdropFilter: `blur(${(30 / 1920) * containerHeight}px)`,
+                  WebkitBackdropFilter: `blur(${(30 / 1920) * containerHeight}px)`,
                   background: 'rgba(0, 0, 0, 0.05)',
                 }}
               />
@@ -393,7 +393,7 @@ export function ShortsLeftPanel({
                     paintOrder: 'stroke fill' as const,
                     backgroundColor: subtitleStyle.backgroundColor,
                     textAlign: 'center' as const,
-                    padding: '4px',
+                    padding: 0,
                     pointerEvents: 'none' as const,
                     userSelect: 'none' as const,
                     lineHeight: 1.4,
@@ -446,8 +446,11 @@ export function ShortsLeftPanel({
                     cursor: 'text',
                     lineHeight: 1.3,
                     wordBreak: 'keep-all' as const,
-                    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                    textShadow: containerHeight > 0
+                      ? `0 ${(1 / 1920) * containerHeight}px ${(4 / 1920) * containerHeight}px rgba(0,0,0,0.5)`
+                      : '0 1px 4px rgba(0,0,0,0.5)',
                     WebkitTextStroke: containerHeight > 0 ? `${(1 / 1920) * containerHeight}px rgba(0,0,0,0.3)` : undefined,
+                    paintOrder: 'stroke fill' as const,
                   }}
                 >
                   {overlay.text}

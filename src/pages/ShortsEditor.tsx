@@ -151,12 +151,24 @@ export function ShortsEditor() {
 
   const handleSubtitleSelect = useCallback((id: string | null) => {
     setSelectedSubtitleId(id);
-    if (id) setSelectedSceneId(null);
+    if (id) {
+      setSelectedSceneId(null);
+      setSelectedTextOverlayId(null);
+    }
   }, []);
 
   const handleSceneSelect = useCallback((id: number | null) => {
     setSelectedSceneId(id);
     setSelectedSubtitleId(null);
+    setSelectedTextOverlayId(null);
+  }, []);
+
+  const handleTextOverlaySelect = useCallback((id: string | null) => {
+    setSelectedTextOverlayId(id);
+    if (id) {
+      setSelectedSubtitleId(null);
+      setSelectedSceneId(null);
+    }
   }, []);
 
   const handleAddTextOverlay = useCallback(() => {
@@ -383,7 +395,7 @@ export function ShortsEditor() {
 
       {/* Desktop Layout (md and above) */}
       <div className="hidden md:flex flex-1 overflow-hidden">
-        <ShortsLeftPanel scenes={scenes} selectedSceneId={selectedSceneId} originalVideoPath={originalVideoPath} mergedTtsPath={mergedTtsPath} pipelineSegments={pipelineSegments} onRecompose={handleRecompose} blurRegion={blurRegion} onBlurRegionChange={setBlurRegion} subtitleStyle={subtitleStyle} onSubtitleStyleChange={setSubtitleStyle} selectedSubtitleId={selectedSubtitleId} onSubtitleSelect={handleSubtitleSelect} subtitleSegments={subtitleSegments} textOverlays={textOverlays} selectedTextOverlayId={selectedTextOverlayId} onTextOverlayChange={handleTextOverlayChange} onTextOverlaySelect={setSelectedTextOverlayId} onTextOverlayDelete={handleDeleteTextOverlay} />
+        <ShortsLeftPanel scenes={scenes} selectedSceneId={selectedSceneId} originalVideoPath={originalVideoPath} mergedTtsPath={mergedTtsPath} pipelineSegments={pipelineSegments} onRecompose={handleRecompose} blurRegion={blurRegion} onBlurRegionChange={setBlurRegion} subtitleStyle={subtitleStyle} onSubtitleStyleChange={setSubtitleStyle} selectedSubtitleId={selectedSubtitleId} onSubtitleSelect={handleSubtitleSelect} subtitleSegments={subtitleSegments} textOverlays={textOverlays} selectedTextOverlayId={selectedTextOverlayId} onTextOverlayChange={handleTextOverlayChange} onTextOverlaySelect={handleTextOverlaySelect} onTextOverlayDelete={handleDeleteTextOverlay} />
         <ShortsCenterPanel
           scenes={scenes}
           onScenesChange={setScenes}
@@ -417,7 +429,7 @@ export function ShortsEditor() {
       <div className="flex md:hidden flex-1 flex-col overflow-hidden">
         {/* Tab Content */}
         <div className="flex-1 overflow-hidden">
-          {mobileActiveTab === "preview" && <ShortsLeftPanel scenes={scenes} selectedSceneId={selectedSceneId} originalVideoPath={originalVideoPath} mergedTtsPath={mergedTtsPath} pipelineSegments={pipelineSegments} onRecompose={handleRecompose} blurRegion={blurRegion} onBlurRegionChange={setBlurRegion} subtitleStyle={subtitleStyle} onSubtitleStyleChange={setSubtitleStyle} selectedSubtitleId={selectedSubtitleId} onSubtitleSelect={handleSubtitleSelect} subtitleSegments={subtitleSegments} textOverlays={textOverlays} selectedTextOverlayId={selectedTextOverlayId} onTextOverlayChange={handleTextOverlayChange} onTextOverlaySelect={setSelectedTextOverlayId} onTextOverlayDelete={handleDeleteTextOverlay} />}
+          {mobileActiveTab === "preview" && <ShortsLeftPanel scenes={scenes} selectedSceneId={selectedSceneId} originalVideoPath={originalVideoPath} mergedTtsPath={mergedTtsPath} pipelineSegments={pipelineSegments} onRecompose={handleRecompose} blurRegion={blurRegion} onBlurRegionChange={setBlurRegion} subtitleStyle={subtitleStyle} onSubtitleStyleChange={setSubtitleStyle} selectedSubtitleId={selectedSubtitleId} onSubtitleSelect={handleSubtitleSelect} subtitleSegments={subtitleSegments} textOverlays={textOverlays} selectedTextOverlayId={selectedTextOverlayId} onTextOverlayChange={handleTextOverlayChange} onTextOverlaySelect={handleTextOverlaySelect} onTextOverlayDelete={handleDeleteTextOverlay} />}
           {mobileActiveTab === "script" && (
             <ShortsCenterPanel
               scenes={scenes}
@@ -492,6 +504,7 @@ export function ShortsEditor() {
         subtitleSegments={subtitleSegments}
         subtitleStyle={subtitleStyle}
         blurRegion={blurRegion}
+        textOverlays={textOverlays}
       />
       <YouTubeUploadModal
         isOpen={showYouTubeModal}
@@ -501,6 +514,7 @@ export function ShortsEditor() {
         subtitleSegments={subtitleSegments || []}
         subtitleStyle={subtitleStyle}
         blurRegion={blurRegion}
+        textOverlays={textOverlays}
         targetLanguage={pipelineResult?.targetLanguage || selectedLanguage}
       />
 

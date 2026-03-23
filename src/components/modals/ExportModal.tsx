@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Loader2, CheckCircle2, FolderOpen, AlertCircle } from "lucide-react";
 import { exportVideo } from "../../lib/pipeline/exportService";
 import type { SubtitleSegment, SubtitleStyle } from "../../lib/types/pipeline";
-import type { BlurRegion } from "../../pages/ShortsEditor";
+import type { BlurRegion, TextOverlay } from "../../pages/ShortsEditor";
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface ExportModalProps {
   subtitleSegments?: SubtitleSegment[];
   subtitleStyle?: SubtitleStyle;
   blurRegion?: BlurRegion;
+  textOverlays?: TextOverlay[];
 }
 
 export function ExportModal({
@@ -22,6 +23,7 @@ export function ExportModal({
   subtitleSegments,
   subtitleStyle,
   blurRegion,
+  textOverlays,
 }: ExportModalProps) {
   const [status, setStatus] = useState<"idle" | "exporting" | "done" | "error">("idle");
   const [progress, setProgress] = useState(0);
@@ -53,6 +55,7 @@ export function ExportModal({
       subtitleSegments,
       subtitleStyle,
       blurRegion: blurRegion?.enabled ? blurRegion : undefined,
+      textOverlays: textOverlays?.length ? textOverlays : undefined,
       outputDir: customDir,
       onProgress: (pct, msg) => {
         setProgress(pct);
